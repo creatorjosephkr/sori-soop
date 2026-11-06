@@ -142,3 +142,5 @@ aside>.brand>.app-version{display:inline-block;font-size:12px;font-weight:500;le
 .system .metric b{overflow-wrap:break-word;word-break:normal}
 
 .result-error p{white-space:pre-wrap;max-height:320px;overflow:auto;overflow-wrap:anywhere;font-size:14px;line-height:1.7}
+
+.generation-progress{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0}.generation-progress>#generation-status{flex:1;min-width:180px;margin:0}.generation-progress>button{display:inline-flex;align-items:center;gap:6px;flex-shrink:0}.generation-progress>button[hidden]{display:none}.result-loading{width:46px;height:46px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;color:#6d8d56;border:1px solid #dbe5d0;border-radius:50%;background:#f0f5e9}.result-loading .ui-icon{width:25px;height:25px;animation:result-spin 1s linear infinite}.lyric-edge-option{display:flex;align-items:center;gap:8px}.lyric-edge-option input{width:20px;height:20px;flex-shrink:0}@keyframes result-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.result-loading .ui-icon{animation:none}}

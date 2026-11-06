@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from app_paths import ENGINE_ROOT
 from song_duration import automatic,plan_options,planned_seconds
+from song_lyrics import check_lyric_tokens,check_audio_codes
 REPO = ENGINE_ROOT / 'ace-step'
 sys.path.insert(0, str(REPO))
 from audio_processing import write_wav
@@ -29,6 +30,7 @@ p.add_argument('--progress',required=True)
 a=p.parse_args()
 job=json.loads(Path(a.request).read_text(encoding='utf-8'))
 caption=job.get('generationPrompt',job['prompt'])
+lyrics=job.get('generationLyrics',job['lyrics'])
 progress=Path(a.progress)
 def stage(text):
     temp=progress.with_suffix('.tmp')
@@ -56,6 +58,11 @@ if device == 'mps':
 plan_path=Path(a.progress.replace('.progress.json','.plan.json'))
 if a.phase!='render':
     stage('가사에 맞는 곡 구성과 길이를 정하고 있습니다' if automatic(settings) else '가사에 맞는 곡 구성을 준비하고 있습니다')
+    from transformers import AutoTokenizer
+    tokenizer=AutoTokenizer.from_pretrained(str(REPO/'checkpoints/Qwen3-Embedding-0.6B'),local_files_only=True)
+    token_count=check_lyric_tokens(tokenizer,lyrics,job['language'])
+    print(f'전체 가사 확인: {token_count}/2048 tokens',flush=True)
+    del tokenizer
     from acestep.llm_inference import LLMHandler
     planner=LLMHandler()
     message,ok=planner.initialize(checkpoint_dir=str(REPO/'checkpoints'),lm_model_path='acestep-5Hz-lm-0.6B',
@@ -63,7 +70,7 @@ if a.phase!='render':
     if not ok:
         raise RuntimeError(message)
     try:
-        plan=planner.generate_with_stop_condition(caption=caption,lyrics=job['lyrics'],
+        plan=planner.generate_with_stop_condition(caption=caption,lyrics=lyrics,
             infer_type='llm_dit',**plan_options(settings),use_cot_caption=False,
             use_cot_language=False,use_cot_metas=True,cfg_scale=1.0,
             batch_size=1,seeds=[job['seed']])
@@ -75,6 +82,7 @@ if a.phase!='render':
             mx.clear_cache();torch.mps.empty_cache()
     metadata=plan.get('metadata') or {}
     duration=planned_seconds(settings,metadata,plan['audio_codes'])
+    check_audio_codes(plan['audio_codes'],duration)
     if automatic(settings):stage(f'가사에 맞춰 정한 노래 길이: {duration}초')
     plan_path.write_text(json.dumps({'metadata':metadata,'audioCodes':plan['audio_codes'],'plannedSeconds':duration,'durationMode':settings.get('durationMode','manual')},ensure_ascii=False), encoding='utf-8')
     if a.phase=='plan':
@@ -85,6 +93,7 @@ else:
     plan['audio_codes']=plan['audioCodes']
     metadata=plan.get('metadata') or {}
     duration=planned_seconds(settings,metadata,plan['audio_codes'])
+    check_audio_codes(plan['audio_codes'],duration)
 
 from acestep.handler import AceStepHandler
 from acestep.inference import GenerationParams, GenerationConfig, generate_music
@@ -120,7 +129,7 @@ message,ok=handler.initialize_service(project_root=str(REPO),config_path='aceste
 if not ok:
     raise RuntimeError(message)
 stage('가사와 음악 설명으로 노래를 생성하고 있습니다')
-params=GenerationParams(caption=caption,lyrics=job['lyrics'],instrumental=False,
+params=GenerationParams(caption=caption,lyrics=lyrics,instrumental=False,
     vocal_language=job['language'],duration=duration,seed=job['seed'],
     audio_codes=plan['audio_codes'],bpm=metadata.get('bpm'),keyscale=metadata.get('keyscale',''),
     timesignature=str(metadata.get('timesignature','')),

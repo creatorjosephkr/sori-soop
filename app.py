@@ -145,8 +145,9 @@ def validate(settings):
         seconds = settings['seconds']
         if not auto_length and (type(seconds) is not int or not 10 <= seconds <= MODELS[model]['maxSeconds']):
             raise ValueError('음악 길이가 모델 지원 범위를 벗어났습니다.')
+    if type(settings.get('instrumentalEdges',True)) is not bool:raise ValueError('Intro·Outro 연주 설정을 확인하세요.')
     validate_peak_db(settings.get('peakDb', -6))
-    return {k: settings[k] for k in ('policy', 'mode', 'model', 'seconds', 'backend', 'peakDb', 'durationMode') if k in settings}
+    return {k: settings[k] for k in ('policy', 'mode', 'model', 'seconds', 'backend', 'peakDb', 'durationMode', 'instrumentalEdges') if k in settings}
 
 def resolve_generation_settings(settings, info):
     resolved = dict(settings)

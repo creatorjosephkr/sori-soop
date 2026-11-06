@@ -11,6 +11,7 @@ import wave
 import translation
 import song_runtime
 import song_duration
+import song_lyrics
 from audio_processing import validate_peak_db, wav_peak_db
 from pathlib import Path
 
@@ -81,6 +82,7 @@ def start(settings, prompt, available=None, lyrics='', language='ko', title=''):
             raise ValueError('노래의 음악 설명은 512자 이내로 입력하세요.')
         if not isinstance(lyrics, str) or not lyrics.strip() or len(lyrics) > 4000:
             raise ValueError('노래 가사를 1~4000자로 입력하세요.')
+        prepared=song_lyrics.prepare(lyrics,settings.get('instrumentalEdges',True))
         if language not in ('ko', 'en', 'ja', 'zh', 'unknown'):
             raise ValueError('지원하는 보컬 언어를 선택하세요.')
     if not ready(settings['backend'], settings['model']):
@@ -99,7 +101,10 @@ def start(settings, prompt, available=None, lyrics='', language='ko', title=''):
         job={'id':ident,'createdAt':time.time(),'status':'queued','title':title.strip(),'prompt':prompt.strip(),
              'settings':dict(settings),'runtimeRevision':(ROOT/('song-engine-version.txt' if song else 'engines-version.txt')).read_text(encoding='utf-8').strip(),'seed':int.from_bytes(os.urandom(4),'big') % (2**31), 'elapsedSeconds':None}
         if song:
-            job.update(lyrics=lyrics.strip(), language=language, plannerRevision=(ROOT/'song-planner-version.txt').read_text(encoding='utf-8').strip())
+            job.update(generationLyrics=prepared['lyrics'],lyricDirections=prepared['directions'],lyrics=lyrics.strip(), language=language, plannerRevision=(ROOT/'song-planner-version.txt').read_text(encoding='utf-8').strip())
+        if song and prepared['directions']:
+            job['generationInputPrompt']=prompt.strip()+'\n'+ '\n'.join(item['section']+' instrumental arrangement: '+item['text'] for item in prepared['directions'])
+            if translation.has_korean(job['generationInputPrompt']) and not translation.ready():raise ValueError('한글 연주 설명을 처리하려면 로컬 번역 모델을 준비해 주세요.')
         save(job); ACTIVE=ident; CURRENT=job
         threading.Thread(target=run,args=(job,),daemon=True).start()
     return job
@@ -107,7 +112,10 @@ def start(settings, prompt, available=None, lyrics='', language='ko', title=''):
 def translate_job(job):
     """Finish and release the offline translator before loading a music model."""
     global PROCESS
-    if not translation.has_korean(job['prompt']):
+    source=job.get('generationInputPrompt',job['prompt'])
+    if not translation.has_korean(source):
+        if len(source)>(512 if job['settings']['mode']=='song' else 2000):raise ValueError('음악 설명과 Intro·Outro 연주 설명이 너무 깁니다. 설명을 줄여 주세요.')
+        if source!=job['prompt']:job['generationPrompt']=source;save(job)
         return True
     python, _ = translation.runtime_paths()
     output=DATA/'jobs'/(job['id']+'.translation.json')
