@@ -6,7 +6,15 @@ from pathlib import Path
 
 ROOT=Path(os.environ.get('LOCAL_MUSIC_RESOURCES',Path(__file__).resolve().parent))
 DATA=Path(os.environ.get('LOCAL_MUSIC_DATA',Path.home()/'.local-music-studio'))
-ENGINE_ROOT=Path(os.environ.get('LOCAL_MUSIC_ENGINES',DATA/'engines' if getattr(sys,'frozen',False) else ROOT/'engines'))
+def installed_storage(executable=None, system=None):
+    executable=Path(executable or sys.executable).resolve()
+    if (system or sys.platform)=='darwin':
+        bundle=next((parent for parent in executable.parents if parent.suffix=='.app'),None)
+        if bundle:return bundle.parent/'SoriSoop Data'
+    return executable.parent/'SoriSoop Data'
+
+STORAGE=Path(os.environ.get('LOCAL_MUSIC_STORAGE',installed_storage() if getattr(sys,'frozen',False) else DATA))
+ENGINE_ROOT=Path(os.environ.get('LOCAL_MUSIC_ENGINES',STORAGE/'engines' if getattr(sys,'frozen',False) else ROOT/'engines'))
 
 def uv_path():
     bundled=ROOT/'tools'/('uv.exe' if sys.platform=='win32' else 'uv')

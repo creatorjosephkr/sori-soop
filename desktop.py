@@ -1,4 +1,4 @@
-"""Native desktop launcher; models remain in a writable user folder."""
+"""Native desktop launcher; runtime files share the application drive."""
 import argparse
 import contextlib
 import json
@@ -19,10 +19,10 @@ def configure(testing=False):
         os.environ['LOCAL_MUSIC_AUTO_SETUP']='0'
         os.environ['LOCAL_MUSIC_DATA']=tempfile.mkdtemp(prefix='sorisup-check-')
         os.environ['LOCAL_MUSIC_ENGINES']=str(Path(os.environ['LOCAL_MUSIC_DATA'])/'engines')
-    elif getattr(sys,'frozen',False):
-        data=Path(os.environ.get('LOCAL_MUSIC_DATA',Path.home()/'.local-music-studio'))
-        os.environ.setdefault('LOCAL_MUSIC_ENGINES',str(data/'engines'))
-        os.environ.setdefault('HF_HOME',str(data/'cache'/'huggingface'))
+        os.environ['LOCAL_MUSIC_STORAGE']=os.environ['LOCAL_MUSIC_DATA']
+    if getattr(sys,'frozen',False) or testing:
+        from storage import configure_caches
+        configure_caches()
     import certifi
     os.environ.setdefault('SSL_CERT_FILE',certifi.where())
     os.environ.setdefault('REQUESTS_CA_BUNDLE',certifi.where())

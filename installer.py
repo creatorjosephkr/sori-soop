@@ -6,6 +6,7 @@ import shutil
 import signal
 import subprocess
 import threading
+import storage
 from app_paths import ROOT,DATA,ENGINE_ROOT,uv_path
 
 LOCK=threading.Lock()
@@ -23,20 +24,22 @@ def bgm_weights_ready(backend):
     return all((folder/name).is_file() for name in files)
 
 def saved_error():
-    try:return json.loads((DATA/'first-setup.json').read_text(encoding='utf-8')).get('error')
+    try:
+        saved=json.loads((DATA/'first-setup.json').read_text(encoding='utf-8'))
+        return saved.get('error') if saved.get('storageRoot')==str(storage.STORAGE) else None
     except (OSError,ValueError,AttributeError):return None
 
 def remember(error=None):
     DATA.mkdir(parents=True,exist_ok=True)
     path=DATA/'first-setup.json';tmp=path.with_suffix('.tmp')
-    tmp.write_text(json.dumps({'error':error},ensure_ascii=False),encoding='utf-8');tmp.replace(path)
+    tmp.write_text(json.dumps({'error':error,'storageRoot':str(storage.STORAGE)},ensure_ascii=False),encoding='utf-8');tmp.replace(path)
 
 def status():
     import engine,translation
     backend='apple' if platform.system()=='Darwin' and platform.machine().lower() in ('arm64','aarch64') else 'cpu'
     with LOCK:state=dict(STATE)
     if state['state']=='idle' and saved_error():state.update(state='failed',error=saved_error())
-    return {**state,'autoSetupEnabled':os.environ.get('LOCAL_MUSIC_AUTO_SETUP')!='0','ready':{'bgm':engine.ready(backend) and bgm_weights_ready(backend),'translation':translation.ready(),'song':engine.ready(backend,'ace-step')}}
+    return {**state,'storage':storage.describe(),'autoSetupEnabled':os.environ.get('LOCAL_MUSIC_AUTO_SETUP')!='0','ready':{'bgm':engine.ready(backend) and bgm_weights_ready(backend),'translation':translation.ready(),'song':engine.ready(backend,'ace-step')}}
 
 def start(component):
     import engine
@@ -48,7 +51,9 @@ def start(component):
         components=[key for key in SCRIPTS if not current['ready'][key]] if component in ('all','auto') else [component]
         if not components:return current
         DATA.mkdir(parents=True,exist_ok=True)
-        try:uv_path()
+        try:
+            storage.prepare()
+            uv_path()
         except (OSError,RuntimeError) as error:
             remember(str(error))
             with LOCK:STATE.update(state='failed',error=str(error))
@@ -65,7 +70,7 @@ def run_queue(components):
             with LOCK:
                 if STATE['state']=='cancelled':return
                 STATE.update(component=component,step=index,total=len(components))
-            if shutil.disk_usage(DATA).free<(16 if component=='song' else 3)*1024**3:
+            if shutil.disk_usage(ENGINE_ROOT).free<(16 if component=='song' else 3)*1024**3:
                 raise RuntimeError('저장 공간이 부족합니다. 노래는 16GB, 나머지는 3GB 이상의 여유 공간을 확보한 뒤 다시 시도해 주세요.')
             run(component)
             if not status()['ready'][component]:raise RuntimeError('설치 결과를 확인하지 못했습니다. 다시 준비해 주세요.')

@@ -13,6 +13,7 @@ class AutoInstallerTests(unittest.TestCase):
         self.data=Path(self.tmp.name)
         for target,value in [('DATA',self.data),('STATE',{'active':False,'component':None,'state':'idle','error':None}),('PROCESS',None)]:
             p=patch.object(installer,target,value);p.start();self.addCleanup(p.stop)
+        p=patch.object(installer.storage,'prepare');p.start();self.addCleanup(p.stop)
         self.ready={'bgm':False,'translation':False,'song':False}
         p=patch.object(installer,'status',side_effect=lambda:{**installer.STATE,'ready':dict(self.ready)})
         self.status_patch=p;p.start();self.addCleanup(p.stop)

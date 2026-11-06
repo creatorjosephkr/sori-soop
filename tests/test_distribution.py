@@ -31,14 +31,14 @@ class SourceArchiveTests(unittest.TestCase):
             with self.assertRaises(RuntimeError):runtime_download.install_source('owner/repo','b'*40,destination)
 
 class DistributionTests(unittest.TestCase):
-    def test_frozen_engines_use_user_folder_instead_of_readonly_bundle(self):
+    def test_frozen_engines_use_sibling_storage_instead_of_readonly_bundle(self):
         root=Path(__file__).resolve().parent.parent
         with tempfile.TemporaryDirectory() as tmp:
             env={**os.environ,'LOCAL_MUSIC_DATA':tmp,'LOCAL_MUSIC_RESOURCES':str(root)}
-            env.pop('LOCAL_MUSIC_ENGINES',None)
-            code="import sys;sys.frozen=True;import app_paths;print(app_paths.ENGINE_ROOT)"
+            env.pop('LOCAL_MUSIC_ENGINES',None);env.pop('LOCAL_MUSIC_STORAGE',None)
+            code="import sys;sys.frozen=True;import app_paths;print(app_paths.ENGINE_ROOT);print(app_paths.installed_storage()/'engines')"
             output=subprocess.check_output([sys.executable,'-c',code],cwd=root,env=env,text=True).strip()
-            self.assertEqual(Path(output),Path(tmp)/'engines')
+            self.assertEqual(*output.splitlines())
     def test_ui_and_release_version_match(self):
         root=Path(__file__).resolve().parent.parent;version=(root/'VERSION').read_text(encoding='utf-8').strip()
         self.assertIn('v'+version+'</small>',(root/'web/index.html').read_text(encoding='utf-8'))
@@ -46,7 +46,7 @@ class DistributionTests(unittest.TestCase):
 class InstallerTests(unittest.TestCase):
     def test_only_known_components_and_no_install_during_generation(self):
         with self.assertRaises(ValueError):installer.start('../unknown')
-        with tempfile.TemporaryDirectory() as tmp,patch.object(installer,'DATA',Path(tmp)),patch.object(installer,'uv_path',return_value=sys.executable),patch.object(installer.shutil,'disk_usage') as disk,patch.object(engine,'ACTIVE','a'*32):
+        with tempfile.TemporaryDirectory() as tmp,patch.object(installer,'DATA',Path(tmp)),patch.object(installer,'uv_path',return_value=sys.executable),patch.object(installer.storage,'prepare'),patch.object(installer.shutil,'disk_usage') as disk,patch.object(engine,'ACTIVE','a'*32):
             disk.return_value.free=100*1024**3
             with self.assertRaisesRegex(ValueError,'현재 작업'):installer.start('bgm')
     def test_generation_is_blocked_while_installing(self):
