@@ -9,7 +9,7 @@
 다운로드:
 
 - **Mac:** `SoriSoop-1.0.0-macos-arm64.dmg` → Applications로 복사. Apple Silicon / macOS 14 이상.
-- **Windows:** `SoriSoop-1.0.0-windows-x64.zip` → 전체 압축 해제 후 `SoriSoop.exe` 실행. Windows 10/11 x64 및 Edge WebView2 Runtime 필요.
+- **Windows:** `SoriSoop-1.0.0-windows-x64-setup.exe` 실행 → 설치 위치 선택 → 설치 완료 후 소리숲 실행. Windows 10(버전 2004 이상)/11 x64 대상. WebView2·Visual C++ 실행 도구를 포함하며 필요한 경우 자동 설치합니다.
 - `SHA256SUMS.txt`로 다운로드 파일의 무결성을 확인할 수 있습니다.
 
 처음 실행하면 별도의 준비 모달창에서 안내와 함께 배경음악·한국어 번역·노래의 실행 환경과 모델을 자동으로 준비합니다. 이미 설치된 항목은 건너뛰며, 실패하면 다시 시도할 수 있습니다. 인터넷 연결과 16GB 이상의 여유 공간을 확보해 주세요. 준비 중 앱을 종료하면 중단되며, 다음 실행 시 필요한 항목을 다시 확인합니다.

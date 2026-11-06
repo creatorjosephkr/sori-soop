@@ -34,6 +34,10 @@ class UpdateTests(unittest.TestCase):
             item=release();asset=item['assets'][0]
             for key in ('name','browser_download_url'):asset[key]=asset[key].replace('macos-arm64.dmg','windows-x64.zip')
             self.assertTrue(updates.release_info(item)['downloadUrl'].endswith('windows-x64.zip'))
+            setup=dict(asset)
+            for key in ('name','browser_download_url'):setup[key]=setup[key].replace('windows-x64.zip','windows-x64-setup.exe')
+            item['assets'].append(setup)
+            self.assertTrue(updates.release_info(item)['downloadUrl'].endswith('windows-x64-setup.exe'))
         item=release();item['html_url']='https://evil.example/release'
         with self.assertRaises(ValueError):updates.release_info(item)
 

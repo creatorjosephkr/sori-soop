@@ -32,3 +32,11 @@ Model weights are not included in the desktop download. The user explicitly
 chooses model preparation before the corresponding downloads begin.
 Additional packaged runtime licenses are included under third-party-licenses/.
 Service logos identify external services; see web/icons/SOURCES.txt.
+
+Windows installer prerequisites
+Microsoft Edge WebView2 Evergreen Runtime and Microsoft Visual C++ Redistributable
+are Microsoft components, redistributed as their original signed installers.
+Their Microsoft license terms apply independently of this application's MIT license.
+https://developer.microsoft.com/microsoft-edge/webview2/
+https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist
+The installer does not remove shared Microsoft runtimes on application uninstall.

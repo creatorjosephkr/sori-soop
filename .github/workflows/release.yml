@@ -72,12 +72,7 @@ jobs:
           python scripts/check_macos_distribution.py artifacts/*.dmg
       - name: Check packaged server and real native window (Windows)
         if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $process = Start-Process dist/SoriSoop/SoriSoop.exe -ArgumentList '--self-test','--report','artifacts/windows-server.json' -Wait -PassThru
-          if ($process.ExitCode -ne 0) { throw 'Packaged server check failed' }
-          $process = Start-Process dist/SoriSoop/SoriSoop.exe -ArgumentList '--smoke-ui','--report','artifacts/windows-window.json' -Wait -PassThru
-          if ($process.ExitCode -ne 0) { throw 'Native window check failed' }
+        run: python scripts/check_windows_distribution.py
       - name: Prepare a clean background-music runtime
         run: python setup_engine.py
       - name: Prepare the offline translation runtime
@@ -97,6 +92,7 @@ jobs:
           name: failure-${{ matrix.platform }}
           path: |
             artifacts/*.json
+            artifacts/*.log
             build/pyinstaller/SoriSoop/warn-SoriSoop.txt
           if-no-files-found: ignore
   draft-release:
@@ -116,7 +112,7 @@ jobs:
         shell: bash
         run: |
           cd artifacts
-          sha256sum *.dmg *.zip > SHA256SUMS.txt
+          sha256sum *.dmg *.exe > SHA256SUMS.txt
       - name: Create a reviewable release draft
         env:
           GH_TOKEN: ${{ github.token }}
@@ -133,7 +129,7 @@ jobs:
               exit 1
             fi
             gh release edit "$TAG" --target "$GITHUB_SHA" --notes-file "docs/release-${TAG#v}.md"
-            gh release upload "$TAG" --clobber artifacts/*.dmg artifacts/*.zip artifacts/SHA256SUMS.txt
+            gh release upload "$TAG" --clobber artifacts/*.dmg artifacts/*.exe artifacts/SHA256SUMS.txt
           else
-            gh release create "$TAG" --target "$GITHUB_SHA" --draft --title "소리숲 $TAG" --notes-file "docs/release-${TAG#v}.md" artifacts/*.dmg artifacts/*.zip artifacts/SHA256SUMS.txt
+            gh release create "$TAG" --target "$GITHUB_SHA" --draft --title "소리숲 $TAG" --notes-file "docs/release-${TAG#v}.md" artifacts/*.dmg artifacts/*.exe artifacts/SHA256SUMS.txt
           fi

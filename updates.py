@@ -30,15 +30,18 @@ def release_info(release):
     release_url = REPOSITORY + '/releases/tag/' + tag
     if release.get('html_url') != release_url:
         raise ValueError('올바른 저장소의 릴리즈가 아닙니다.')
-    suffix = None
+    suffixes = []
     if platform.system() == 'Darwin' and platform.machine().lower() in ('arm64', 'aarch64'):
-        suffix = 'macos-arm64.dmg'
+        suffixes = ['macos-arm64.dmg']
     elif platform.system() == 'Windows' and platform.machine().lower() in ('amd64', 'x86_64'):
-        suffix = 'windows-x64.zip'
-    name = f'SoriSoop-{tag.lstrip("v")}-{suffix}' if suffix else None
-    download = next((a.get('browser_download_url') for a in release.get('assets', [])
-                     if name and a.get('name') == name and a.get('state') == 'uploaded'
-                     and a.get('browser_download_url') == REPOSITORY + '/releases/download/' + tag + '/' + name), None)
+        suffixes = ['windows-x64-setup.exe', 'windows-x64.zip']
+    download=None
+    for suffix in suffixes:
+        name=f'SoriSoop-{tag.lstrip("v")}-{suffix}'
+        download=next((a.get('browser_download_url') for a in release.get('assets', [])
+                       if a.get('name')==name and a.get('state')=='uploaded'
+                       and a.get('browser_download_url')==REPOSITORY+'/releases/download/'+tag+'/'+name),None)
+        if download:break
     return dict(currentVersion=CURRENT, latestVersion=tag.lstrip('v'), available=latest > version(CURRENT),
                 releaseUrl=release_url, repositoryUrl=REPOSITORY, downloadUrl=download)
 

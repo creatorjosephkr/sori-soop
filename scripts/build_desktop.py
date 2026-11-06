@@ -65,7 +65,13 @@ def main():
         subprocess.run(['hdiutil','create','-volname','소리숲 '+VERSION,'-srcfolder',str(staging),'-ov','-format','UDZO',str(artifact)],check=True)
     elif sys.platform=='win32':
         shutil.copy2(ROOT/'RELEASE_README.txt',ROOT/'dist/SoriSoop/먼저 읽어주세요.txt')
-        artifact=Path(shutil.make_archive(str(artifacts/f'SoriSoop-{VERSION}-windows-x64'),'zip',ROOT/'dist','SoriSoop'))
+        subprocess.run(['pwsh','-NoProfile','-File',str(ROOT/'scripts/prepare_windows_dependencies.ps1')],check=True)
+        manifest=json.loads((ROOT/'build/prerequisites/manifest.json').read_text(encoding='utf-8-sig'))
+        vc=next(item for item in manifest if item['name']=='vc_redist.x64.exe')['version'].split('.')
+        compiler=shutil.which('ISCC.exe') or str(Path(os.environ.get('ProgramFiles(x86)',r'C:\Program Files (x86)'))/'Inno Setup 6/ISCC.exe')
+        subprocess.run([compiler,'/DRepoRoot='+str(ROOT),'/DAppVersion='+VERSION,'/DVCMajor='+vc[0],'/DVCMinor='+vc[1],'/DVCBuild='+vc[2],str(ROOT/'installer/windows/setup.iss')],check=True)
+        artifact=artifacts/f'SoriSoop-{VERSION}-windows-x64-setup.exe'
+        shutil.copy2(ROOT/'build/prerequisites/manifest.json',artifacts/'windows-prerequisites.json')
     else:raise RuntimeError('macOS 또는 Windows에서 빌드하세요.')
     digest=hashlib.sha256(artifact.read_bytes()).hexdigest()
     (artifacts/(artifact.name+'.sha256')).write_text(digest+'  '+artifact.name+'\n', encoding='utf-8')
