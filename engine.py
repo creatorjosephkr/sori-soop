@@ -145,6 +145,29 @@ def translate_job(job):
     with GUARD:save(job)
     return True
 
+def generation_failure(code, log_text, windows=False):
+    """Keep native Windows exits distinct from ordinary Python exceptions."""
+    lines=re.sub(r'\x1b\[[0-9;]*m','',log_text).splitlines()
+    tail='\n'.join(lines[-60:])[-12000:]
+    status=code & 0xffffffff
+    label=f'0x{status:08X}' if windows else str(code)
+    if windows and status in (0xC0000017,0xC000012D,0xC000012C):
+        message='Windows에서 사용 가능한 메모리 또는 가상 메모리가 부족해 생성이 중단되었습니다. 다른 앱을 닫고 Windows 가상 메모리를 시스템 관리 크기로 설정한 뒤 다시 시도하세요.'
+    elif windows and status==0xC000001D:
+        message='CPU 명령을 실행하지 못해 생성 엔진이 종료되었습니다. CPU와 실행 패키지의 호환성 확인이 필요합니다.'
+    elif windows and status==0xC0000005:
+        message='생성 엔진에서 메모리 접근 오류가 발생했습니다. 종료 코드와 아래 로그로 원인을 확인해야 합니다.'
+    elif windows and status in (0xC0000135,0xC0000139):
+        message='생성 엔진의 DLL을 불러오지 못했습니다. 실행 패키지 호환성 확인이 필요합니다.'
+    elif 'out of memory' in tail.lower() or 'cannot allocate memory' in tail.lower() or 'not enough memory' in tail.lower():
+        message='음악 생성에 필요한 메모리를 확보하지 못했습니다. 다른 앱을 닫고 더 짧은 길이로 재시도하세요.'
+    elif code<0 and not windows:
+        message='생성 프로세스가 종료되었습니다. 메모리가 부족할 수 있으니 다른 앱을 닫고 더 짧은 길이로 재시도하세요.'
+    else:
+        message='엔진 실행에 실패했습니다. 아래 종료 코드와 생성 로그를 확인해 주세요.'
+    return message,f'종료 코드: {label} ({code})\n'+tail
+
+
 def run(job):
     global ACTIVE, PROCESS, CURRENT
     started=time.monotonic()
@@ -178,13 +201,8 @@ def run(job):
             job['status']='cancelled'
         elif code:
             job['status']='failed'
-            if code < 0:
-                job['error']='생성 프로세스가 종료되었습니다. 메모리가 부족할 수 있으니 다른 앱을 닫고 더 짧은 길이로 재시도하세요.'
-            else:
-                job['error']='엔진 실행에 실패했습니다. 모델 접근 권한·다운로드 상태·메모리를 확인하세요.'
-                lines=log.read_text(errors='replace', encoding='utf-8').splitlines()
-                if lines:
-                    job['errorDetails']=re.sub(r'\x1b\[[0-9;]*m','',lines[-1])[-500:]
+            job['exitCode']=code
+            job['error'],job['errorDetails']=generation_failure(code,log.read_text(errors='replace',encoding='utf-8'),platform.system()=='Windows')
 
         else:
             with wave.open(str(out)) as w:
@@ -212,6 +230,10 @@ def run(job):
         if not job.get('cancelRequested'):job['error']=str(e)
     finally:
         if song:
+            plan_path=DATA/'jobs'/(job['id']+'.plan.json')
+            try:
+                if plan_path.exists():job['composition']=json.loads(plan_path.read_text(encoding='utf-8'))
+            except (OSError,ValueError):pass
             import shutil
             shutil.rmtree(out.parent/(out.stem+'-work'), ignore_errors=True)
         job['elapsedSeconds']=round(time.monotonic()-started,2)

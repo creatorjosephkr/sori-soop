@@ -106,3 +106,23 @@ class TitleTests(unittest.TestCase):
         settings={'mode':'bgm','model':'small-music','backend':'cpu','seconds':10,'policy':'manual'}
         for title in (None,{},'가'*101):
             with self.assertRaises(ValueError):engine.start(settings,'piano',8,title=title)
+
+class GenerationFailureTests(unittest.TestCase):
+    def test_windows_native_exit_codes_keep_their_meaning(self):
+        for code in (0xC000012D,0xC000012D-2**32,0xC0000017):
+            message,details=engine.generation_failure(code,'loading model',windows=True)
+            self.assertIn('가상 메모리',message)
+            self.assertIn(f'0x{code & 0xffffffff:08X}',details)
+        message,details=engine.generation_failure(0xC0000005,'loading model',windows=True)
+        self.assertIn('메모리 접근 오류',message)
+        self.assertNotIn('부족',message)
+        self.assertIn('0xC0000005',details)
+
+    def test_tail_preserves_multiline_failure_without_unbounded_history(self):
+        log='private old text\n'+'\n'.join(f'line {n}' for n in range(100))+'\n\x1b[31mRuntimeError: not enough memory\x1b[0m'
+        message,details=engine.generation_failure(1,log)
+        self.assertIn('메모리를 확보',message)
+        self.assertIn('line 99\nRuntimeError:',details)
+        self.assertNotIn('private old text',details)
+        self.assertNotIn('\x1b',details)
+        self.assertLess(len(details),12100)

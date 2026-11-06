@@ -140,3 +140,5 @@ aside>.brand>.app-version{display:inline-block;font-size:12px;font-weight:500;le
 .track-title{font-size:16px}
 
 .system .metric b{overflow-wrap:break-word;word-break:normal}
+
+.result-error p{white-space:pre-wrap;max-height:320px;overflow:auto;overflow-wrap:anywhere;font-size:14px;line-height:1.7}

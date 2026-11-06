@@ -1,5 +1,7 @@
 """ACE-Step adapter: direct lyric conditioning, one isolated process per song."""
 import argparse
+import faulthandler
+faulthandler.enable()
 import json
 import os
 import sys
@@ -32,6 +34,12 @@ def stage(text):
     temp.write_text(json.dumps({'phase':text},ensure_ascii=False), encoding='utf-8')
     temp.replace(progress)
     print(text,flush=True)
+    # Record memory at model boundaries, including before a native loader crash.
+    try:
+        import psutil
+        process=psutil.Process().memory_info();memory=psutil.virtual_memory()
+        print(f'[memory] process RSS={process.rss/1024**3:.2f} GB; available RAM={memory.available/1024**3:.2f} GB; total RAM={memory.total/1024**3:.2f} GB',flush=True)
+    except (ImportError,OSError):pass
 
 stage('노래 엔진을 준비하고 있습니다')
 import torch
