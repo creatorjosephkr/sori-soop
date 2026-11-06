@@ -2,6 +2,8 @@
 import os
 import json
 import platform
+import re
+import time
 import shutil
 import signal
 import subprocess
@@ -34,12 +36,29 @@ def remember(error=None):
     path=DATA/'first-setup.json';tmp=path.with_suffix('.tmp')
     tmp.write_text(json.dumps({'error':error,'storageRoot':str(storage.STORAGE)},ensure_ascii=False),encoding='utf-8');tmp.replace(path)
 
+
+def log_tail(component):
+    """Read a bounded tail even when installers emit carriage-return progress bars."""
+    if component not in SCRIPTS:return {'lines':[],'updatedAt':None}
+    try:
+        with (DATA/('setup-'+component+'.log')).open('rb') as stream:
+            size=stream.seek(0,2);stream.seek(max(0,size-32768))
+            raw=stream.read(32768);modified=os.fstat(stream.fileno()).st_mtime
+        text=raw.decode('utf-8',errors='replace')
+        text=re.sub(r'\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|$))','',text)
+        text=re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]','',text)
+        lines=[line.strip()[:500] for line in text.splitlines() if line.strip()]
+        return {'lines':lines[-40:],'updatedAt':modified}
+    except OSError:return {'lines':[],'updatedAt':None}
+
 def status():
     import engine,translation
     backend='apple' if platform.system()=='Darwin' and platform.machine().lower() in ('arm64','aarch64') else 'cpu'
     with LOCK:state=dict(STATE)
     if state['state']=='idle' and saved_error():state.update(state='failed',error=saved_error())
-    return {**state,'storage':storage.describe(),'autoSetupEnabled':os.environ.get('LOCAL_MUSIC_AUTO_SETUP')!='0','ready':{'bgm':engine.ready(backend) and bgm_weights_ready(backend),'translation':translation.ready(),'song':engine.ready(backend,'ace-step')}}
+    log=log_tail(state.get('component'))
+    now=time.time()
+    return {**state,'log':log,'elapsedSeconds':max(0,int(now-state.get('startedAt',now))),'quietSeconds':max(0,int(now-(log['updatedAt'] or state.get('componentStartedAt',now)))),'storage':storage.describe(),'autoSetupEnabled':os.environ.get('LOCAL_MUSIC_AUTO_SETUP')!='0','ready':{'bgm':engine.ready(backend) and bgm_weights_ready(backend),'translation':translation.ready(),'song':engine.ready(backend,'ace-step')}}
 
 def start(component):
     import engine
@@ -59,7 +78,7 @@ def start(component):
             with LOCK:STATE.update(state='failed',error=str(error))
             raise
         remember()
-        with LOCK:STATE.update(active=True,component=components[0],state='installing',error=None,step=1,total=len(components))
+        with LOCK:STATE.update(active=True,component=components[0],state='installing',error=None,step=1,total=len(components),startedAt=time.time(),componentStartedAt=time.time())
         threading.Thread(target=run_queue,args=(components,),daemon=True).start()
     return status()
 
@@ -69,7 +88,7 @@ def run_queue(components):
         for index,component in enumerate(components,1):
             with LOCK:
                 if STATE['state']=='cancelled':return
-                STATE.update(component=component,step=index,total=len(components))
+                STATE.update(component=component,step=index,total=len(components),componentStartedAt=time.time())
             if shutil.disk_usage(ENGINE_ROOT).free<(16 if component=='song' else 3)*1024**3:
                 raise RuntimeError('저장 공간이 부족합니다. 노래는 16GB, 나머지는 3GB 이상의 여유 공간을 확보한 뒤 다시 시도해 주세요.')
             run(component)
@@ -88,9 +107,10 @@ def run_queue(components):
 def run(component):
     global PROCESS
     log=DATA/('setup-'+component+'.log')
-    env={**os.environ,'LOCAL_MUSIC_RESOURCES':str(ROOT),'LOCAL_MUSIC_ENGINES':str(ENGINE_ROOT),'LOCAL_MUSIC_UV':uv_path(),'HF_HUB_DISABLE_TELEMETRY':'1','DO_NOT_TRACK':'1'}
+    env={**os.environ,'LOCAL_MUSIC_RESOURCES':str(ROOT),'LOCAL_MUSIC_ENGINES':str(ENGINE_ROOT),'LOCAL_MUSIC_UV':uv_path(),'HF_HUB_DISABLE_TELEMETRY':'1','DO_NOT_TRACK':'1','PYTHONUNBUFFERED':'1','HF_HUB_DISABLE_PROGRESS_BARS':'0','TQDM_MININTERVAL':'1'}
     options={'creationflags':subprocess.CREATE_NEW_PROCESS_GROUP} if os.name=='nt' else {'start_new_session':True}
-    with log.open('w',encoding='utf-8') as output:
+    with log.open('w',encoding='utf-8',buffering=1) as output:
+        output.write('준비 작업을 시작합니다. 실행 환경과 필요한 파일을 확인하고 있습니다.\n');output.flush()
         with LOCK:
             if STATE['state']=='cancelled':return
             PROCESS=subprocess.Popen([uv_path(),'run','--no-project','--python','3.11',str(ROOT/SCRIPTS[component])],cwd=ROOT,env=env,stdout=output,stderr=subprocess.STDOUT,**options)

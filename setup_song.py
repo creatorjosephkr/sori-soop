@@ -7,9 +7,11 @@ import tomllib
 from app_paths import ROOT,ENGINE_ROOT,uv_path
 from runtime_download import install_source
 
+print('1/4 · 노래 엔진 파일을 확인하고 내려받습니다.',flush=True)
 repo=ENGINE_ROOT/'ace-step'
 install_source('ace-step/ACE-Step-1.5',(ROOT/'song-engine-version.txt').read_text(encoding='utf-8').strip(),repo)
 python=repo/('.venv/Scripts/python.exe' if platform.system()=='Windows' else '.venv/bin/python')
+print('2/4 · 노래 실행 환경과 필요한 프로그램을 설치합니다.',flush=True)
 if not python.exists():subprocess.run([uv_path(),'venv','--python','3.11',str(repo/'.venv')],check=True)
 if platform.system()=='Darwin':
     requirements=ROOT/'requirements-song-mac.lock'
@@ -22,9 +24,11 @@ else:
     requirements=repo/'sorisup-cpu-requirements.txt';requirements.write_text('\n'.join(deps)+'\n', encoding='utf-8')
 subprocess.run([uv_path(),'pip','install','--python',str(python),'-r',str(requirements)],check=True)
 env={**os.environ,'HF_HUB_DISABLE_XET':'1','HF_HUB_DISABLE_TELEMETRY':'1'}
+print('3/4 · 노래 생성·보컬 모델 파일을 다운로드합니다.',flush=True)
 revision=(ROOT/'song-model-version.txt').read_text(encoding='utf-8').strip()
 code="from huggingface_hub import snapshot_download; snapshot_download('ACE-Step/Ace-Step1.5',local_dir="+repr(str(repo/'checkpoints'))+",revision="+repr(revision)+",allow_patterns=['acestep-v15-turbo/*','vae/*','Qwen3-Embedding-0.6B/*'],max_workers=3)"
 subprocess.run([str(python),'-c',code],env=env,check=True)
+print('4/4 · 노래 구성 모델 파일을 다운로드합니다.',flush=True)
 planner_revision=(ROOT/'song-planner-version.txt').read_text(encoding='utf-8').strip()
 code="from huggingface_hub import snapshot_download; snapshot_download('ACE-Step/acestep-5Hz-lm-0.6B',revision="+repr(planner_revision)+",local_dir="+repr(str(repo/'checkpoints/acestep-5Hz-lm-0.6B'))+",max_workers=3)"
 subprocess.run([str(python),'-c',code],env=env,check=True)

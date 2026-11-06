@@ -28,6 +28,21 @@
                 status=await api('/api/setup',{component:'auto'});
             }
             panel.setAttribute('aria-busy',String(status.active));
+            const activity=document.getElementById('setup-activity');
+            activity.classList.toggle('is-active',status.active);
+            document.getElementById('setup-activity-label').textContent=status.active?'파일을 다운로드·설치하고 있습니다':status.state==='failed'?'준비 중 문제가 발생했습니다':complete?'준비 완료':'작업 대기 중';
+            const elapsed=Number.isFinite(status.elapsedSeconds)?status.elapsedSeconds:0;
+            document.getElementById('setup-elapsed').textContent=status.active?`진행 시간 ${Math.floor(elapsed/60)}분 ${elapsed%60}초`:'';
+            const lines=status.log?.lines||[],log=document.getElementById('setup-log');
+            const content=lines.length?lines.join('\n'):'준비 작업이 시작되면 여기에 처리 내용이 표시됩니다.';
+            // Preserve scroll position when someone is reading earlier entries.
+            if(log.textContent!==content){
+                const follow=log.scrollHeight-log.scrollTop-log.clientHeight<36;
+                log.textContent=content;if(follow)log.scrollTop=log.scrollHeight;
+            }
+            const quiet=status.quietSeconds||0;
+            document.getElementById('setup-log-freshness').textContent=lines.length?(status.active?`· ${quiet<3?'방금 갱신':quiet+'초 전 갱신'}`:'· 마지막 기록'):'';
+            document.getElementById('setup-current-file').textContent=status.active&&quiet>=20?'새 로그를 기다리고 있습니다. 큰 파일을 다운로드하거나 압축을 푸는 동안 출력이 잠시 뜸할 수 있습니다.':lines.at(-1)||'현재 처리되는 파일과 설치 내용이 여기에 표시됩니다.';
             const location=status.storage;
             document.getElementById('setup-storage').textContent=location?`모델·실행 환경 저장 위치: ${location.root}${Number.isFinite(location.freeBytes)?` · 여유 공간 ${(location.freeBytes/1024**3).toFixed(1)}GB`:''}`:'';
             for(const item of panel.querySelectorAll('[data-step]')){
@@ -60,5 +75,6 @@
         catch(error){message.textContent=error.message;}
         finally{busy=false;update();}
     });
+    document.getElementById('setup-log-bottom').onclick=()=>{const log=document.getElementById('setup-log');log.scrollTop=log.scrollHeight;};
     setTimeout(update,700);
 })();
