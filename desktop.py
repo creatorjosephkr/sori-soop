@@ -65,13 +65,24 @@ def notify_error(message):
         escaped=str(message).replace('\\','\\\\').replace('"','\\"').replace('\n','\\n')
         subprocess.run(['osascript','-e','display alert "소리숲" message "'+escaped+'" as critical'],check=False)
 
+def window_geometry(screens):
+    width,height=1600,1080
+    if screens:
+        screen=screens[0];frame=screen.frame
+        available_width=int(getattr(frame,'Width',screen.width))
+        available_height=int(getattr(frame,'Height',screen.height))
+        width=min(width,max(640,available_width-40))
+        height=min(height,max(480,available_height-48))
+    return width,height,(min(1100,width),min(760,height))
+
+
 def run(args,root,data):
     import app,engine,installer
     from local_server import backend_session
     preferred=int(os.environ.get('PORT','8765'))
     # Test the real collision path too, rather than always hiding it with port 0.
     reserved=None
-    if args.self_test or args.smoke_ui or args.bootstrap_test:
+    if args.self_test or args.smoke_ui or args.bootstrap_test or args.generation_test:
         import socket
         reserved=socket.socket();reserved.bind(('127.0.0.1',0));reserved.listen(1)
         preferred=reserved.getsockname()[1]
@@ -91,6 +102,9 @@ def run(args,root,data):
             subprocess.run([uv_path(),'--version'],check=True,**background_options())
             assert int(url.rsplit(':',1)[1])!=preferred
             result={'ok':True,'mode':'packaged-server','resources':True,'firstRunReady':True,'uv':True,'portCollisionHandled':int(url.rsplit(':',1)[1])!=preferred}
+        elif args.generation_test:
+            from generation_console_check import check
+            result=check(data)
         elif args.bootstrap_test:
             installer.SCRIPTS['bootstrap-check']='setup_bootstrap_check.py'
             installer.run('bootstrap-check')
@@ -99,7 +113,8 @@ def run(args,root,data):
             import webview
             webview.settings['ALLOW_DOWNLOADS']=True
             webview.settings['OPEN_EXTERNAL_LINKS_IN_BROWSER']=True
-            window=webview.create_window('소리숲',url,width=1440,height=1000,min_size=(960,700),hidden=args.smoke_ui,background_color='#f6f7f3',text_select=True)
+            width,height,minimum=window_geometry(webview.screens)
+            window=webview.create_window('소리숲',url,width=width,height=height,min_size=minimum,hidden=args.smoke_ui,maximized=not args.smoke_ui and (width<1600 or height<1080),background_color='#f6f7f3',text_select=True)
             if args.smoke_ui:
                 def check():
                     try:
@@ -123,8 +138,8 @@ def run(args,root,data):
 
 def main():
     parser=argparse.ArgumentParser()
-    parser.add_argument('--bootstrap-test',action='store_true');parser.add_argument('--self-test',action='store_true');parser.add_argument('--smoke-ui',action='store_true');parser.add_argument('--report')
-    args=parser.parse_args();testing=args.self_test or args.smoke_ui or args.bootstrap_test
+    parser.add_argument('--generation-test',action='store_true');parser.add_argument('--bootstrap-test',action='store_true');parser.add_argument('--self-test',action='store_true');parser.add_argument('--smoke-ui',action='store_true');parser.add_argument('--report')
+    args=parser.parse_args();testing=args.self_test or args.smoke_ui or args.bootstrap_test or args.generation_test
     root,data=configure(testing)
     try:
         with contextlib.nullcontext() if testing else instance_lock(data):result=run(args,root,data)

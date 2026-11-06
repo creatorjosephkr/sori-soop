@@ -39,6 +39,9 @@ def main():
         subprocess.run([str(app),'--bootstrap-test','--report',str(report)],env=env,check=True,timeout=120)
         bootstrap=json.loads(report.read_text(encoding='utf-8'))
         assert bootstrap['noManagedLinks'] and bootstrap['noConsoleWindow']
+        report=artifacts/'windows-generation-console.json'
+        subprocess.run([str(app),'--generation-test','--report',str(report)],check=True,timeout=90)
+        assert json.loads(report.read_text(encoding='utf-8'))['noConsoleWindow']
         marker=target/'SoriSoop Data'/'keep-existing-model.txt';marker.parent.mkdir(exist_ok=True);marker.write_text('preserve',encoding='utf-8')
         run([target/'unins000.exe','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',f'/LOG={artifacts/"windows-uninstall.log"}'])
         deadline=time.monotonic()+30
