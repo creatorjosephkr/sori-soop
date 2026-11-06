@@ -103,7 +103,7 @@ def start(settings, prompt, available=None, lyrics='', language='ko', title=''):
         if song:
             job.update(generationLyrics=prepared['lyrics'],lyricDirections=prepared['directions'],lyrics=lyrics.strip(), language=language, plannerRevision=(ROOT/'song-planner-version.txt').read_text(encoding='utf-8').strip())
         if song and prepared['directions']:
-            job['generationInputPrompt']=prompt.strip()+'\n'+ '\n'.join(item['section']+' instrumental arrangement: '+item['text'] for item in prepared['directions'])
+            job['generationInputPrompt']=prompt.strip()+'\n'+ '\n'.join(item['section']+' instrumental arrangement:\n'+item['text'] for item in prepared['directions'])
             if translation.has_korean(job['generationInputPrompt']) and not translation.ready():raise ValueError('한글 연주 설명을 처리하려면 로컬 번역 모델을 준비해 주세요.')
         save(job); ACTIVE=ident; CURRENT=job
         threading.Thread(target=run,args=(job,),daemon=True).start()

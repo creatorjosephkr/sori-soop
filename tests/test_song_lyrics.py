@@ -1,4 +1,5 @@
 import unittest
+from translation import translate_segments
 from song_lyrics import prepare,check_lyric_tokens,check_audio_codes
 
 class SongLyricsTests(unittest.TestCase):
@@ -22,3 +23,11 @@ class SongLyricsTests(unittest.TestCase):
         self.assertEqual(check_lyric_tokens(lambda *a,**k:{'input_ids':[1]*2048},'가사','ko'),2048)
         with self.assertRaisesRegex(ValueError,'끝까지'):check_audio_codes('<|audio_code_1|>'*100,100)
         self.assertEqual(check_audio_codes('<|audio_code_1|>'*500,100),500)
+
+    def test_instrumental_heading_is_not_retranslated_with_korean_directions(self):
+        source='intro instrumental arrangement:\n잔잔한 피아노\noutro instrumental arrangement:\n부드럽게 끝나기'
+        parts=[]
+        def translate(text):parts.append(text);return 'soft piano' if text=='잔잔한 피아노' else 'gentle ending'
+        output=translate_segments(source,translate)
+        self.assertEqual(parts,['잔잔한 피아노','부드럽게 끝나기'])
+        self.assertIn('intro instrumental arrangement:\nsoft piano',output)
