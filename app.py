@@ -2,6 +2,7 @@ import json
 import engine
 import translation
 import installer
+import updates
 from audio_processing import validate_peak_db
 import os
 import platform
@@ -18,12 +19,15 @@ LOCK = threading.Lock()
 PAYPAL_SPONSOR_URL = 'https://www.paypal.com/paypalme/tech1010?locale.x=ko_KR&country.x=KR'
 
 def open_paypal():
-    """Open the fixed donation link with the OS default browser."""
+    open_external(PAYPAL_SPONSOR_URL)
+
+def open_external(url):
+    """Open a server-validated URL with the OS default browser."""
     system = platform.system()
     if system == 'Windows':
-        os.startfile(PAYPAL_SPONSOR_URL)
+        os.startfile(url)
     else:
-        subprocess.run(['open' if system == 'Darwin' else 'xdg-open', PAYPAL_SPONSOR_URL], check=True, timeout=10)
+        subprocess.run(['open' if system == 'Darwin' else 'xdg-open', url], check=True, timeout=10)
 
 MODELS = {
     'small-music': {'name': 'Stable Audio 3 Small-Music', 'maxSeconds': 120, 'vocals': False},
@@ -178,7 +182,7 @@ class Handler(BaseHTTPRequestHandler):
             info = diagnose()
             settings = read_settings()
             return self.reply({'system': info, 'settings': settings, 'translationReady': translation.ready(), 'recommendation': recommend(info, settings.get('mode', 'bgm')), 'models': MODELS, 'engineReady': engine.ready('apple' if info['appleSilicon'] else 'cpu'), 'engines': {b: engine.ready(b) for b in ('apple', 'cpu')}, 'songEngines': {b: engine.ready(b, 'ace-step') for b in ('apple', 'cpu')}})
-        paths = {'/': 'index.html', '/style.css': 'style.css', '/app.js': 'app.js', '/presets.js': 'presets.js', '/player.js': 'player.js', '/icons.js': 'icons.js', '/setup.js': 'setup.js', '/fonts/NotoSansKR-Variable.ttf': 'fonts/NotoSansKR-Variable.ttf', '/icons/sorisup.svg': 'icons/sorisup.svg', '/icons/chatgpt.svg': 'icons/chatgpt.svg', '/icons/claude.ico': 'icons/claude.ico', '/icons/gemini.png': 'icons/gemini.png'}
+        paths = {'/': 'index.html', '/style.css': 'style.css', '/app.js': 'app.js', '/presets.js': 'presets.js', '/player.js': 'player.js', '/icons.js': 'icons.js', '/setup.js': 'setup.js', '/updates.js': 'updates.js', '/fonts/NotoSansKR-Variable.ttf': 'fonts/NotoSansKR-Variable.ttf', '/icons/sorisup.svg': 'icons/sorisup.svg', '/icons/chatgpt.svg': 'icons/chatgpt.svg', '/icons/claude.ico': 'icons/claude.ico', '/icons/gemini.png': 'icons/gemini.png'}
         paths.update({'/spon/'+name: '../spon/'+name for name in ('spon.svg', 'kakaobank.png', 'paypal.png')})
         if self.path not in paths:
             return self.reply({'error': '찾을 수 없습니다.'}, 404)
@@ -229,6 +233,18 @@ class Handler(BaseHTTPRequestHandler):
         # Only the local app may change local settings; reject cross-origin requests.
         if self.headers.get('Origin') not in (None, 'http://' + self.headers.get('Host', '')):
             return self.reply({'error': '외부 페이지의 요청은 허용하지 않습니다.'}, 403)
+        if self.path in ('/api/updates/check', '/api/updates/open/release', '/api/updates/open/download'):
+            try:
+                result = updates.check()
+                if self.path != '/api/updates/check':
+                    url = result['downloadUrl'] if self.path.endswith('/download') else result['releaseUrl']
+                    if not url or not result['available']:
+                        raise ValueError('다운로드할 새 버전이 없습니다.')
+                    open_external(url)
+                    return self.reply({'ok': True})
+                return self.reply(result)
+            except Exception:
+                return self.reply({'error': '업데이트 정보를 확인하거나 링크를 열지 못했습니다. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.'}, 503)
         if self.path == '/api/setup':
             try:
                 length=int(self.headers.get('Content-Length','0'))

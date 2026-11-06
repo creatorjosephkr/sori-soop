@@ -109,3 +109,28 @@ class RenameTests(unittest.TestCase):
             with self.assertRaises(urllib.error.HTTPError) as error:
                 urllib.request.urlopen(urllib.request.Request(self.base+'/api/rename',json.dumps({'id':ident,'title':'외부 수정'}).encode(),{'Origin':'https://example.org'}))
             self.assertEqual(error.exception.code,403);error.exception.close()
+
+
+class UpdateHttpTests(unittest.TestCase):
+    setUp = HttpTests.setUp
+    tearDown = HttpTests.tearDown
+
+    def test_check_open_and_origin_protection(self):
+        info={'available':True,'releaseUrl':app.updates.REPOSITORY+'/releases/tag/v1.0.2','downloadUrl':None}
+        with patch.object(app.updates,'check',return_value=info) as check,patch.object(app,'open_external') as opener:
+            with urllib.request.urlopen(urllib.request.Request(self.base+'/api/updates/check',b'{}')) as response:
+                self.assertEqual(json.load(response),info)
+            with urllib.request.urlopen(urllib.request.Request(self.base+'/api/updates/open/release',b'{}')) as response:
+                self.assertTrue(json.load(response)['ok'])
+            opener.assert_called_once_with(info['releaseUrl'])
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(urllib.request.Request(self.base+'/api/updates/open/download',b'{}'))
+            self.assertEqual(error.exception.code,503);error.exception.close()
+            count=check.call_count
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(urllib.request.Request(self.base+'/api/updates/check',b'{}',{'Origin':'https://evil.example'}))
+            self.assertEqual(error.exception.code,403);error.exception.close();self.assertEqual(count,check.call_count)
+        with patch.object(app.updates,'check',side_effect=OSError('offline')):
+            with self.assertRaises(urllib.error.HTTPError) as error:
+                urllib.request.urlopen(urllib.request.Request(self.base+'/api/updates/check',b'{}'))
+            self.assertEqual(error.exception.code,503);error.exception.close()
