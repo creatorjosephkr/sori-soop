@@ -51,11 +51,6 @@
                 item.classList.toggle('is-current',current);item.classList.toggle('is-ready',ready);
                 if(current)item.setAttribute('aria-current','step');else item.removeAttribute('aria-current');
             }
-            for(const button of panel.querySelectorAll('[data-setup]')){
-                const kind=button.dataset.setup,ready=status.ready[kind];
-                button.disabled=status.active||activeJob||ready;
-                button.textContent=labels[kind]+(ready?' 준비 완료':status.state==='failed'?' 다시 준비':' 준비');
-            }
             const retry=document.getElementById('setup-retry');
             retry.hidden=status.state!=='failed';retry.disabled=status.active||activeJob;
             message.textContent=status.active?`자동 준비 ${status.step||1}/${status.total||1} · ${labels[status.component]} 실행 환경과 모델을 준비하고 있습니다. 인터넷 속도에 따라 수 분 이상 걸릴 수 있습니다.`:status.error||(complete?'준비를 마쳤습니다. 이제 음악을 만들어 보세요.':'첫 실행 준비를 기다리고 있습니다.');
@@ -68,10 +63,10 @@
         finally{busy=false;timer=setTimeout(update,running||pendingOpen?2000:5000);}
     }
     panel.addEventListener('click',async event=>{
-        const button=event.target.closest('[data-setup],#setup-retry');if(!button||button.disabled||busy)return;
+        const button=event.target.closest('#setup-retry');if(!button||button.disabled||busy)return;
         busy=true;autoAttempted=true;
-        panel.querySelectorAll('[data-setup],#setup-retry').forEach(item=>item.disabled=true);
-        try{await api('/api/setup',{component:button.dataset.setup||'all'});running=true;}
+        button.disabled=true;
+        try{await api('/api/setup',{component:'all'});running=true;}
         catch(error){message.textContent=error.message;}
         finally{busy=false;update();}
     });

@@ -100,7 +100,7 @@ def run(args,root,data):
                 def check():
                     try:
                         for _ in range(120):
-                            if window.evaluate_js("!!document.getElementById('prompt') && typeof state !== 'undefined' && !!state && !!document.querySelector('[data-setup]')"):
+                            if window.evaluate_js("!!document.getElementById('prompt') && typeof state !== 'undefined' && !!state && !!document.getElementById('setup-retry') && !!document.getElementById('setup-steps')"):
                                 result.update(ok=True,mode='native-webview',version=window.evaluate_js("document.querySelector('.app-version').textContent"),portCollisionHandled=int(url.rsplit(':',1)[1])!=preferred);break
                             time.sleep(.5)
                     except Exception as error:result.update(error=str(error))
