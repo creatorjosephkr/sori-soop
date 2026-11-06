@@ -1,0 +1,4 @@
+ChatGPT / OpenAI: Simple Icons v13.0.0, https://raw.githubusercontent.com/simple-icons/simple-icons/13.0.0/icons/openai.svg (CC0 collection; brand rights remain with their owners).
+Claude: https://claude.ai/favicon.ico
+Gemini: https://www.gstatic.com/lamda/images/gemini_sparkle_4g_512_lt_f94943af3be039176192d.png (favicon referenced by https://gemini.google.com/app).
+Local copies avoid contacting external services until a user opens a link. These brands identify the linked services; no affiliation is implied.

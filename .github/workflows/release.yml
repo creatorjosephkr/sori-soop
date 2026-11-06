@@ -1,0 +1,94 @@
+name: Desktop release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  desktop:
+    name: Build ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15
+            platform: macos-arm64
+          - os: windows-2025
+            platform: windows-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 55
+    env:
+      PYTHONUTF8: '1'
+      HF_HUB_DISABLE_TELEMETRY: '1'
+      DO_NOT_TRACK: '1'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11'
+      - name: Install build tools
+        run: python -m pip install -r requirements-build.txt
+      - name: Run tests
+        run: python -m unittest discover -s tests
+      - name: Build desktop app
+        run: python scripts/build_desktop.py
+      - name: Check packaged server and real native window (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          dist/SoriSoop.app/Contents/MacOS/SoriSoop --self-test --report artifacts/macos-server.json
+          dist/SoriSoop.app/Contents/MacOS/SoriSoop --smoke-ui --report artifacts/macos-window.json
+      - name: Check packaged server and real native window (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $process = Start-Process dist/SoriSoop/SoriSoop.exe -ArgumentList '--self-test','--report','artifacts/windows-server.json' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Packaged server check failed' }
+          $process = Start-Process dist/SoriSoop/SoriSoop.exe -ArgumentList '--smoke-ui','--report','artifacts/windows-window.json' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw 'Native window check failed' }
+      - name: Prepare a clean background-music runtime
+        run: python setup_engine.py
+      - name: Prepare the offline translation runtime
+        run: python setup_translation.py
+      - name: Generate music from Korean description
+        run: python scripts/smoke_models.py
+      - name: Upload desktop files and check reports
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: desktop-${{ matrix.platform }}
+          path: artifacts/*
+          if-no-files-found: error
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: failure-${{ matrix.platform }}
+          path: |
+            artifacts/*.json
+            build/pyinstaller/SoriSoop/warn-SoriSoop.txt
+          if-no-files-found: ignore
+  draft-release:
+    needs: desktop
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: desktop-*
+          path: artifacts
+          merge-multiple: true
+      - name: Create integrity manifest
+        shell: bash
+        run: |
+          cd artifacts
+          sha256sum *.dmg *.zip > SHA256SUMS.txt
+      - name: Create a reviewable release draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create "$GITHUB_REF_NAME" --verify-tag --draft --title "소리숲 $GITHUB_REF_NAME" --notes-file docs/release-1.0.0.md artifacts/*.dmg artifacts/*.zip artifacts/SHA256SUMS.txt

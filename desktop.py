@@ -1,0 +1,126 @@
+"""Native desktop launcher; models remain in a writable user folder."""
+import argparse
+import contextlib
+import json
+import os
+import sys
+import tempfile
+import threading
+import time
+import traceback
+import urllib.request
+from pathlib import Path
+
+
+def configure(testing=False):
+    root=Path(getattr(sys,'_MEIPASS',Path(__file__).resolve().parent))
+    os.environ.setdefault('LOCAL_MUSIC_RESOURCES',str(root))
+    if testing:
+        os.environ['LOCAL_MUSIC_DATA']=tempfile.mkdtemp(prefix='sorisup-check-')
+        os.environ['LOCAL_MUSIC_ENGINES']=str(Path(os.environ['LOCAL_MUSIC_DATA'])/'engines')
+    elif getattr(sys,'frozen',False):
+        data=Path(os.environ.get('LOCAL_MUSIC_DATA',Path.home()/'.local-music-studio'))
+        os.environ.setdefault('LOCAL_MUSIC_ENGINES',str(data/'engines'))
+        os.environ.setdefault('HF_HOME',str(data/'cache'/'huggingface'))
+    import certifi
+    os.environ.setdefault('SSL_CERT_FILE',certifi.where())
+    os.environ.setdefault('REQUESTS_CA_BUNDLE',certifi.where())
+    os.environ.setdefault('PYTHONUTF8','1')
+    os.environ.setdefault('HF_HUB_DISABLE_TELEMETRY','1')
+    os.environ.setdefault('DO_NOT_TRACK','1')
+    from app_paths import DATA
+    DATA.mkdir(parents=True,exist_ok=True)
+    if sys.stdout is None:sys.stdout=(DATA/'desktop.log').open('a',encoding='utf-8',buffering=1)
+    if sys.stderr is None:sys.stderr=sys.stdout
+    return root,DATA
+
+@contextlib.contextmanager
+def instance_lock(data):
+    file=(data/'desktop.lock').open('a+b')
+    try:
+        if os.name=='nt':
+            import msvcrt
+            file.seek(0);file.write(b'0');file.flush();file.seek(0)
+            msvcrt.locking(file.fileno(),msvcrt.LK_NBLCK,1)
+        else:
+            import fcntl
+            fcntl.flock(file.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
+    except OSError:
+        file.close();raise RuntimeError('소리숲이 이미 실행 중입니다. 열려 있는 소리숲 창을 확인해 주세요.')
+    try:yield
+    finally:file.close()
+
+def notify_error(message):
+    if sys.platform=='win32':
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(None,str(message),'소리숲',0x10)
+    elif sys.platform=='darwin':
+        import subprocess
+        # AppleScript string literals must be escaped, never interpolated as shell code.
+        escaped=str(message).replace('\\','\\\\').replace('"','\\"').replace('\n','\\n')
+        subprocess.run(['osascript','-e','display alert "소리숲" message "'+escaped+'" as critical'],check=False)
+
+def run(args,root,data):
+    import app,engine,installer
+    server=app.ThreadingHTTPServer(('127.0.0.1',0 if args.self_test or args.smoke_ui else int(os.environ.get('PORT','8765'))),app.Handler)
+    threading.Thread(target=server.serve_forever,daemon=True).start()
+    url='http://127.0.0.1:'+str(server.server_port)
+    result={'ok':False}
+    try:
+        if args.self_test:
+            from app_paths import uv_path,ENGINE_ROOT
+            import subprocess
+            for endpoint in ['/','/style.css','/app.js','/setup.js','/icons/sorisup.svg','/fonts/NotoSansKR-Variable.ttf','/spon/spon.svg']:
+                with urllib.request.urlopen(url+endpoint) as response:assert response.status==200
+            status=json.load(urllib.request.urlopen(url+'/api/setup'))
+            assert not any(status['ready'].values())
+            assert ENGINE_ROOT==data/'engines'
+            subprocess.run([uv_path(),'--version'],check=True)
+            result={'ok':True,'mode':'packaged-server','resources':True,'firstRunReady':True,'uv':True}
+        else:
+            import webview
+            webview.settings['ALLOW_DOWNLOADS']=True
+            webview.settings['OPEN_EXTERNAL_LINKS_IN_BROWSER']=True
+            window=webview.create_window('소리숲',url,width=1440,height=1000,min_size=(960,700),hidden=args.smoke_ui,background_color='#f6f7f3',text_select=True)
+            if args.smoke_ui:
+                def check():
+                    try:
+                        for _ in range(120):
+                            if window.evaluate_js("!!document.getElementById('prompt') && typeof state !== 'undefined' && !!state && !!document.querySelector('[data-setup]')"):
+                                result.update(ok=True,mode='native-webview',version=window.evaluate_js("document.querySelector('.app-version').textContent"));break
+                            time.sleep(.5)
+                    except Exception as error:result.update(error=str(error))
+                    finally:window.destroy()
+                window.events.loaded+=lambda:threading.Thread(target=check,daemon=True).start()
+            webview.start(private_mode=False,storage_path=str(data/'webview'),debug=False)
+        return result
+    finally:
+        installer.shutdown();engine.cancel();server.shutdown();server.server_close()
+        deadline=time.monotonic()+5
+        while engine.ACTIVE and time.monotonic()<deadline:time.sleep(.05)
+
+def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--self-test',action='store_true');parser.add_argument('--smoke-ui',action='store_true');parser.add_argument('--report')
+    args=parser.parse_args();testing=args.self_test or args.smoke_ui
+    root,data=configure(testing)
+    try:
+        with contextlib.nullcontext() if testing else instance_lock(data):result=run(args,root,data)
+        if testing and not result['ok']:raise RuntimeError('앱 화면을 확인하지 못했습니다.')
+        if args.report:Path(args.report).write_text(json.dumps(result,ensure_ascii=False,indent=2), encoding='utf-8')
+        print(json.dumps(result,ensure_ascii=False))
+        return 0
+    except Exception as error:
+        traceback.print_exc()
+        if args.report:Path(args.report).write_text(json.dumps({'ok':False,'error':str(error)},ensure_ascii=False), encoding='utf-8')
+        if not testing:notify_error(str(error)+'\n\n진단 로그: '+str(data/'desktop.log'))
+        return 1
+    finally:
+        if testing:
+            import shutil
+            shutil.rmtree(data,ignore_errors=True)
+
+if __name__=='__main__':
+    import multiprocessing
+    multiprocessing.freeze_support()
+    raise SystemExit(main())

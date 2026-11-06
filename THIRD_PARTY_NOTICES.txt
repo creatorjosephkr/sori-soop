@@ -1,0 +1,34 @@
+SoriSoop / 소리숲
+Application source: MIT, Copyright (c) 2026 크리에이터 요셉.
+
+The application license does not replace the separate licenses of models,
+fonts, runtime components, or third-party trademarks.
+
+Noto Sans KR: SIL Open Font License 1.1.
+Full license: web/fonts/OFL-NotoSansKR.txt; provenance: web/fonts/SOURCE.txt.
+
+Stable Audio 3 runtime: MIT (Stability AI).
+Model: Stability AI Community License; separate conditions apply.
+https://huggingface.co/stabilityai/stable-audio-3-small-music
+https://github.com/Stability-AI/stable-audio-3
+
+ACE-Step 1.5 runtime and model: see each upstream license/model card.
+https://github.com/ace-step/ACE-Step-1.5
+https://huggingface.co/ACE-Step/Ace-Step1.5
+
+OPUS-MT Korean to English: Apache-2.0 per the upstream model card.
+https://huggingface.co/Helsinki-NLP/opus-mt-ko-en
+CTranslate2: MIT. https://github.com/OpenNMT/CTranslate2
+
+Desktop components:
+Python: PSF license. https://docs.python.org/3/license.html
+pywebview: BSD 3-Clause. https://github.com/r0x0r/pywebview
+uv: MIT or Apache-2.0. https://github.com/astral-sh/uv
+PyInstaller: GPL-2.0-or-later with bootloader exception.
+https://pyinstaller.org/en/stable/license.html
+certifi: MPL-2.0. https://github.com/certifi/python-certifi
+
+Model weights are not included in the desktop download. The user explicitly
+chooses model preparation before the corresponding downloads begin.
+Additional packaged runtime licenses are included under third-party-licenses/.
+Service logos identify external services; see web/icons/SOURCES.txt.
