@@ -40,7 +40,8 @@ def instance_lock(data):
     try:
         if os.name=='nt':
             import msvcrt
-            file.seek(0);file.write(b'0');file.flush();file.seek(0)
+            if file.seek(0,2)==0:file.write(b'0');file.flush()
+            file.seek(0)
             msvcrt.locking(file.fileno(),msvcrt.LK_NBLCK,1)
         else:
             import fcntl
@@ -93,6 +94,7 @@ def run(args,root,data):
                     finally:window.destroy()
                 window.events.loaded+=lambda:threading.Thread(target=check,daemon=True).start()
             webview.start(private_mode=False,storage_path=str(data/'webview'),debug=False)
+            if not args.smoke_ui:result.update(ok=True,mode='native-webview')
         return result
     finally:
         installer.shutdown();engine.cancel();server.shutdown();server.server_close()

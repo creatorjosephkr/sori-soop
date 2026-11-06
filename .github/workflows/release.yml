@@ -37,8 +37,7 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          dist/SoriSoop.app/Contents/MacOS/SoriSoop --self-test --report artifacts/macos-server.json
-          dist/SoriSoop.app/Contents/MacOS/SoriSoop --smoke-ui --report artifacts/macos-window.json
+          python scripts/check_macos_distribution.py artifacts/*.dmg
       - name: Check packaged server and real native window (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
@@ -96,4 +95,13 @@ jobs:
             echo 'Tag and VERSION do not match'
             exit 1
           fi
-          gh release create "$TAG" --target "$GITHUB_SHA" --draft --title "소리숲 $TAG" --notes-file docs/release-1.0.0.md artifacts/*.dmg artifacts/*.zip artifacts/SHA256SUMS.txt
+          if gh release view "$TAG" --json isDraft --jq .isDraft > /tmp/release-draft-state 2>/dev/null; then
+            if [[ "$(cat /tmp/release-draft-state)" != true ]]; then
+              echo 'Refusing to overwrite an already-published release'
+              exit 1
+            fi
+            gh release edit "$TAG" --target "$GITHUB_SHA" --notes-file docs/release-1.0.0.md
+            gh release upload "$TAG" --clobber artifacts/*.dmg artifacts/*.zip artifacts/SHA256SUMS.txt
+          else
+            gh release create "$TAG" --target "$GITHUB_SHA" --draft --title "소리숲 $TAG" --notes-file docs/release-1.0.0.md artifacts/*.dmg artifacts/*.zip artifacts/SHA256SUMS.txt
+          fi

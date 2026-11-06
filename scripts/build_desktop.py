@@ -20,10 +20,10 @@ def main():
     image=Image.open(ROOT/'assets/app-icon.png')
     icon=ROOT/'assets'/('app-icon.icns' if sys.platform=='darwin' else 'app-icon.ico')
     image.save(icon)
-    licenses=ROOT/'build/third-party-licenses';licenses.mkdir(parents=True,exist_ok=True)
+    licenses=ROOT/'build/third-party-licenses';shutil.rmtree(licenses,ignore_errors=True);licenses.mkdir(parents=True)
     for dist in importlib.metadata.distributions():
         for entry in dist.files or []:
-            if any(word in Path(entry).name.lower() for word in ('license','copying','notice')):
+            if Path(entry).suffix.lower() in ('','.txt','.md','.rst','.html') and any(word in Path(entry).name.lower() for word in ('license','copying','notice')):
                 source=Path(dist.locate_file(entry))
                 if source.is_file():
                     target=licenses/dist.metadata['Name']/Path(entry).name;target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(source,target)
@@ -39,6 +39,13 @@ def main():
     for name in ('spon.svg','kakaobank.png','paypal.png'):args+=['--add-data',str(ROOT/'spon'/name)+':spon']
     args+=['--add-data',str(licenses)+':third-party-licenses','--add-binary',str(uv.find_uv_bin())+':tools']
     if sys.platform=='darwin':args+=['--osx-bundle-identifier','com.creatorjoseph.sorisoop','--target-architecture','arm64']
+    if sys.platform=='win32':
+        numbers=tuple(int(part) for part in VERSION.split('.'))+(0,)
+        fields={'CompanyName':'크리에이터 요셉','FileDescription':'소리숲','FileVersion':VERSION,'InternalName':'SoriSoop','OriginalFilename':'SoriSoop.exe','ProductName':'소리숲','ProductVersion':VERSION,'LegalCopyright':'Copyright © 2026 크리에이터 요셉'}
+        strings=','.join('StringStruct('+repr(key)+','+repr(value)+')' for key,value in fields.items())
+        version_file=ROOT/'build/windows-version.txt'
+        version_file.write_text('VSVersionInfo(ffi=FixedFileInfo(filevers='+repr(numbers)+',prodvers='+repr(numbers)+",mask=0x3f,flags=0x0,OS=0x40004,fileType=0x1,subtype=0x0,date=(0,0)),kids=[StringFileInfo([StringTable('041204b0',["+strings+"])]),VarFileInfo([VarStruct('Translation',[1042,1200])])])",encoding='utf-8')
+        args+=['--version-file',str(version_file)]
     args+=[str(ROOT/'desktop.py')]
     subprocess.run(args,cwd=ROOT,check=True)
     artifacts=ROOT/'artifacts';artifacts.mkdir(exist_ok=True)
