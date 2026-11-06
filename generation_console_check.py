@@ -6,10 +6,26 @@ import time
 from app_paths import bootstrap_python
 
 
-GENERATOR='''import argparse,ctypes,json,wave
+GENERATOR='''import argparse,ctypes,json,os,wave
 from pathlib import Path
 assert ctypes.windll.kernel32.GetConsoleWindow()==0,'Generation launcher opened a console'
-p=argparse.ArgumentParser();p.add_argument('--out',required=True);p.add_argument('--seconds',type=int);p.add_argument('--request');a,_=p.parse_known_args()
+p=argparse.ArgumentParser();p.add_argument('--out',required=True);p.add_argument('--seconds',type=int);p.add_argument('--request');p.add_argument('--phase');a,_=p.parse_known_args()
+if a.phase:
+ stages=Path(a.request).with_suffix('.stages.jsonl')
+ previous=[json.loads(line) for line in stages.read_text().splitlines()] if stages.exists() else []
+ if a.phase=='render':
+  assert len(previous)==1 and previous[0]['phase']=='plan' and previous[0]['pid']!=os.getpid()
+  from ctypes import wintypes
+  kernel=ctypes.windll.kernel32
+  kernel.OpenProcess.restype=wintypes.HANDLE
+  kernel.WaitForSingleObject.argtypes=[wintypes.HANDLE,wintypes.DWORD]
+  kernel.CloseHandle.argtypes=[wintypes.HANDLE]
+  handle=kernel.OpenProcess(0x100000,False,previous[0]['pid'])
+  if handle:
+   assert kernel.WaitForSingleObject(handle,0)==0,'Planner is still running'
+   kernel.CloseHandle(handle)
+ with stages.open('a') as stream:stream.write(json.dumps({'phase':a.phase,'pid':os.getpid()})+'\\n')
+ if a.phase=='plan':raise SystemExit(0)
 seconds=json.loads(Path(a.request).read_text(encoding='utf-8'))['settings']['seconds'] if a.request else a.seconds
 with wave.open(a.out,'wb') as stream:
  stream.setnchannels(2);stream.setsampwidth(2);stream.setframerate(8000);stream.writeframes(bytes(seconds*8000*4))
@@ -46,7 +62,7 @@ def check(data):
                 logs='\n'.join(path.read_text(encoding='utf-8',errors='replace') for path in Path(data).glob('jobs/'+job['id']+'*.log'))
                 raise RuntimeError(str(job.get('error'))+'\n'+logs)
             assert job['translation']['model']=='console-check'
-        return {'ok':True,'bgmLauncher':True,'songLauncher':True,'translationLauncher':True,'noConsoleWindow':True}
+        return {'ok':True,'bgmLauncher':True,'songLauncher':True,'translationLauncher':True,'separateSongProcesses':True,'noConsoleWindow':True}
     finally:
         engine.cancel()
         deadline=time.monotonic()+5

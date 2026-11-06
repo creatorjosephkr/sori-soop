@@ -126,3 +126,28 @@ class GenerationFailureTests(unittest.TestCase):
         self.assertNotIn('private old text',details)
         self.assertNotIn('\x1b',details)
         self.assertLess(len(details),12100)
+
+class WindowsSongStagesTests(unittest.TestCase):
+    def test_planner_exits_before_render_and_failure_does_not_start_render(self):
+        probe='''import argparse,json,os,sys,wave
+from pathlib import Path
+p=argparse.ArgumentParser();p.add_argument('--phase');p.add_argument('--request');p.add_argument('--out');a,_=p.parse_known_args()
+r=Path(a.request);job=json.loads(r.read_text());stages=r.with_suffix('.stages')
+with stages.open('a') as f:f.write(a.phase+' '+str(os.getpid())+'\\n')
+if a.phase=='plan':sys.exit(2 if job['prompt']=='fail' else 0)
+previous=stages.read_text().splitlines();assert len(previous)==2
+assert previous[0].split()[1]!=previous[1].split()[1]
+with wave.open(a.out,'wb') as w:
+ w.setnchannels(2);w.setsampwidth(2);w.setframerate(8000);w.writeframes(bytes(10*8000*4))
+'''
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);script=root/'probe.py';script.write_text(probe)
+            with patch.object(engine,'DATA',root),patch.object(engine,'ready',return_value=True),patch.object(engine,'song_paths',return_value=(root,Path(sys.executable),script)),patch.object(engine.platform,'system',return_value='Windows'):
+                for prompt,expected in [('piano','completed'),('fail','failed')]:
+                    job=engine.start({'mode':'song','model':'ace-step','backend':'cpu','seconds':10},prompt,16,lyrics='New lyrics')
+                    deadline=time.monotonic()+10
+                    while engine.ACTIVE and time.monotonic()<deadline:time.sleep(.02)
+                    self.assertIsNone(engine.ACTIVE)
+                    self.assertEqual(job['status'],expected,job.get('error'))
+                    phases=(root/'jobs'/job['id']).with_suffix('.stages').read_text().splitlines()
+                    self.assertEqual(len(phases),2 if expected=='completed' else 1)

@@ -22,6 +22,7 @@ os.environ.setdefault('PYTORCH_ENABLE_MPS_FALLBACK', '1')
 os.environ.setdefault('HF_HUB_DISABLE_TELEMETRY', '1')
 
 p=argparse.ArgumentParser()
+p.add_argument('--phase',choices=('all','plan','render'),default='all')
 p.add_argument('--request',required=True)
 p.add_argument('--out',required=True)
 p.add_argument('--progress',required=True)
@@ -45,6 +46,46 @@ stage('노래 엔진을 준비하고 있습니다')
 import torch
 import soundfile as sf
 import numpy as np
+settings=job['settings']
+device='mps' if settings['backend']=='apple' else 'cpu'
+import gc, random
+random.seed(job['seed']); np.random.seed(job['seed']); torch.manual_seed(job['seed'])
+if device == 'mps':
+    import mlx.core as mx
+    mx.random.seed(job['seed'])
+plan_path=Path(a.progress.replace('.progress.json','.plan.json'))
+if a.phase!='render':
+    stage('가사에 맞는 곡 구성과 길이를 정하고 있습니다' if automatic(settings) else '가사에 맞는 곡 구성을 준비하고 있습니다')
+    from acestep.llm_inference import LLMHandler
+    planner=LLMHandler()
+    message,ok=planner.initialize(checkpoint_dir=str(REPO/'checkpoints'),lm_model_path='acestep-5Hz-lm-0.6B',
+        backend='mlx' if device=='mps' else 'pt',device=device,offload_to_cpu=False)
+    if not ok:
+        raise RuntimeError(message)
+    try:
+        plan=planner.generate_with_stop_condition(caption=caption,lyrics=job['lyrics'],
+            infer_type='llm_dit',**plan_options(settings),use_cot_caption=False,
+            use_cot_language=False,use_cot_metas=True,cfg_scale=1.0,
+            batch_size=1,seeds=[job['seed']])
+        if not plan.get('success') or not plan.get('audio_codes'):
+            raise RuntimeError(plan.get('error') or '곡 구성을 생성하지 못했습니다.')
+    finally:
+        planner.unload();del planner;gc.collect()
+        if device=='mps':
+            mx.clear_cache();torch.mps.empty_cache()
+    metadata=plan.get('metadata') or {}
+    duration=planned_seconds(settings,metadata,plan['audio_codes'])
+    if automatic(settings):stage(f'가사에 맞춰 정한 노래 길이: {duration}초')
+    plan_path.write_text(json.dumps({'metadata':metadata,'audioCodes':plan['audio_codes'],'plannedSeconds':duration,'durationMode':settings.get('durationMode','manual')},ensure_ascii=False), encoding='utf-8')
+    if a.phase=='plan':
+        stage('곡 구성 완료 · 분석 프로세스의 메모리를 반환합니다')
+        raise SystemExit(0)
+else:
+    plan=json.loads(plan_path.read_text(encoding='utf-8'))
+    plan['audio_codes']=plan['audioCodes']
+    metadata=plan.get('metadata') or {}
+    duration=planned_seconds(settings,metadata,plan['audio_codes'])
+
 from acestep.handler import AceStepHandler
 from acestep.inference import GenerationParams, GenerationConfig, generate_music
 
@@ -71,36 +112,6 @@ class LocalSongHandler(AceStepHandler):
                 self.dtype = torch.float32
         return super()._load_main_model_from_checkpoint(**kwargs)
 
-settings=job['settings']
-device='mps' if settings['backend']=='apple' else 'cpu'
-stage('가사에 맞는 곡 구성과 길이를 정하고 있습니다' if automatic(settings) else '가사에 맞는 곡 구성을 준비하고 있습니다')
-from acestep.llm_inference import LLMHandler
-import gc, random
-random.seed(job['seed']); np.random.seed(job['seed']); torch.manual_seed(job['seed'])
-if device == 'mps':
-    import mlx.core as mx
-    mx.random.seed(job['seed'])
-planner=LLMHandler()
-message,ok=planner.initialize(checkpoint_dir=str(REPO/'checkpoints'),lm_model_path='acestep-5Hz-lm-0.6B',
-    backend='mlx' if device=='mps' else 'pt',device=device,offload_to_cpu=False)
-if not ok:
-    raise RuntimeError(message)
-try:
-    plan=planner.generate_with_stop_condition(caption=caption,lyrics=job['lyrics'],
-        infer_type='llm_dit',**plan_options(settings),use_cot_caption=False,
-        use_cot_language=False,use_cot_metas=True,cfg_scale=1.0,
-        batch_size=1,seeds=[job['seed']])
-    if not plan.get('success') or not plan.get('audio_codes'):
-        raise RuntimeError(plan.get('error') or '곡 구성을 생성하지 못했습니다.')
-finally:
-    planner.unload();del planner;gc.collect()
-    if device=='mps':
-        mx.clear_cache();torch.mps.empty_cache()
-metadata=plan.get('metadata') or {}
-duration=planned_seconds(settings,metadata,plan['audio_codes'])
-if automatic(settings):stage(f'가사에 맞춰 정한 노래 길이: {duration}초')
-plan_path=Path(a.progress.replace('.progress.json','.plan.json'))
-plan_path.write_text(json.dumps({'metadata':metadata,'audioCodes':plan['audio_codes'],'plannedSeconds':duration,'durationMode':settings.get('durationMode','manual')},ensure_ascii=False), encoding='utf-8')
 handler=LocalSongHandler()
 stage('노래 모델을 메모리에 불러오고 있습니다')
 message,ok=handler.initialize_service(project_root=str(REPO),config_path='acestep-v15-turbo',

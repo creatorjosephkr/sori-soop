@@ -190,13 +190,18 @@ def run(job):
                      '--seed',str(job['seed']),'--out',str(out)])
             if not song and script.name in ('sa3_mlx.py', 'sa3_tflite.py'):
                 args=[str(python),'-u',str(ROOT/'runners'/'bgm.py'),'--script',str(script),'--peak-db',str(job['settings']['peakDb']),*args[3:]]
-            PROCESS=subprocess.Popen(args,cwd=folder,stdout=stream,stderr=subprocess.STDOUT,
-                    env={**os.environ,'HF_HUB_DISABLE_TELEMETRY':'1','DO_NOT_TRACK':'1','HF_HUB_DISABLE_XET':'1',**({'HF_HUB_OFFLINE':'1'} if song else {})},**background_options())
         with stream:
-            try:
-                code=PROCESS.wait(timeout=1800)
-            except subprocess.TimeoutExpired:
-                PROCESS.kill(); PROCESS.wait(); raise ValueError('30분 제한을 초과했습니다. 더 짧은 길이로 재시도하세요.')
+            for phase in (('plan','render') if song and platform.system()=='Windows' else (None,)):
+                with GUARD:
+                    if job.get('cancelRequested'):break
+                    command=args+['--phase',phase] if phase else args
+                    PROCESS=subprocess.Popen(command,cwd=folder,stdout=stream,stderr=subprocess.STDOUT,
+                        env={**os.environ,'HF_HUB_DISABLE_TELEMETRY':'1','DO_NOT_TRACK':'1','HF_HUB_DISABLE_XET':'1',**({'HF_HUB_OFFLINE':'1'} if song else {})},**background_options())
+                try:
+                    code=PROCESS.wait(timeout=max(.01,1800-(time.monotonic()-started)))
+                except subprocess.TimeoutExpired:
+                    PROCESS.kill(); PROCESS.wait(); raise ValueError('30분 제한을 초과했습니다. 더 짧은 길이로 재시도하세요.')
+                if code:break
         if job.get('cancelRequested'):
             job['status']='cancelled'
         elif code:
