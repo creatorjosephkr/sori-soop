@@ -1,4 +1,4 @@
-소리숲 1.0.0
+소리숲 1.0.1
 Copyright © 2026 크리에이터 요셉 (creatorjoseph@kakao.com)
 https://github.com/creatorjosephkr/sori-soop
 
@@ -13,7 +13,7 @@ Python·Git을 따로 설치할 필요가 없습니다. 모델 준비에 인터�
 배경음악 모델은 첫 생성 시 추가 다운로드하며, 노래 모델은 약 8GB입니다.
 노래 준비에는 16GB 이상, 나머지 기능 준비에는 3GB 이상의 여유 공간을 확보해 주세요.
 모델 준비 후 음악 설명·가사·음원은 내 컴퓨터에서 처리합니다.
-Windows 1.0.0은 CPU 실행 방식입니다. 구형 GPU에 의존하지 않으며 노래 생성은 느릴 수 있습니다.
+Windows 1.0.1은 CPU 실행 방식입니다. 구형 GPU에 의존하지 않으며 노래 생성은 느릴 수 있습니다.
 
 이 배포본에는 Apple Developer ID 공증 또는 Windows Authenticode 서명이 없습니다.
 운영체제에서 출처 확인 안내가 표시될 수 있습니다.

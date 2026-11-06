@@ -1,6 +1,6 @@
 # 소리숲 · Local Music Studio
 
-앱 버전: 1.0.0 (`VERSION`, 앱 메타데이터 및 사이드바 이름 옆에 표시).
+앱 버전: 1.0.1 (`VERSION`, 앱 메타데이터 및 사이드바 이름 옆에 표시).
 
 
 ## 다운로드 및 실행
@@ -10,7 +10,7 @@
 - Apple Silicon Mac(macOS 14 이상): `macos-arm64.dmg`를 열고 `SoriSoop.app`을 Applications에 복사합니다.
 - Windows 10/11 x64: `windows-x64.zip` 전체를 압축 해제한 뒤 `SoriSoop.exe`를 실행합니다. Microsoft Edge WebView2 Runtime이 필요합니다.
 - 첫 실행 화면에서 사용할 기능의 ‘준비’ 버튼을 누릅니다. 배포용 앱은 Python·Git을 별도로 설치할 필요가 없습니다. 모델 준비와 최초 모델 다운로드에는 인터넷을 사용합니다.
-- Windows 1.0.0은 CPU 실행 경로입니다. 구형 GPU에 의존하지 않으며 노래 생성은 오래 걸릴 수 있습니다. Windows에서의 노래 생성 성능과 다양한 GPU 조합은 별도 검증 대상입니다.
+- Windows 1.0.1은 CPU 실행 경로입니다. 구형 GPU에 의존하지 않으며 노래 생성은 오래 걸릴 수 있습니다. Windows에서의 노래 생성 성능과 다양한 GPU 조합은 별도 검증 대상입니다.
 - 현재 배포본은 Developer ID 공증/Authenticode 서명이 없습니다. 운영체제의 출처 확인 안내가 표시될 수 있습니다.
 
 앱과 모델은 별도 라이선스를 따릅니다. 앱 소스는 [MIT](LICENSE), 모델 및 폰트·실행 구성요소는 [개별 이용 조건](THIRD_PARTY_NOTICES.txt)을 확인하세요. Stable Audio 모델은 Stability AI Community License의 조건을 따르므로 앱의 MIT 라이선스가 모델 이용 조건을 대체하지 않습니다.
@@ -147,3 +147,5 @@ python scripts/build_desktop.py
 `artifacts/`에 macOS DMG 또는 Windows ZIP과 SHA-256 체크섬을 만듭니다. 모델·가중치·개인 생성 기록은 빌드에 포함하지 않습니다. `desktop.py --self-test`는 패키지 리소스·로컬 서버·설치 도구를, `--smoke-ui`는 숨겨진 네이티브 창의 실제 로딩을 확인합니다.
 
 GitHub Actions의 Desktop release를 수동 실행하거나 `v*` 태그를 푸시하면 두 운영체제의 테스트·빌드·패키지 검사를 실행한 뒤 릴리즈 초안에 파일을 첨부합니다. 모든 플랫폼이 통과한 초안을 확인한 후 공개합니다. 일반 CI에는 모델을 다운로드하지 않으며 릴리즈 빌드에서 별도의 생성 검증을 수행합니다.
+
+1.0.1부터 기본 연결 주소가 사용 중이면 빈 주소를 자동으로 선택하고, 같은 데이터 폴더의 기존 소리숲 서버는 확인 후 재사용합니다. 데이터 폴더 잠금으로 서버 중복 실행에 따른 생성·기록 충돌을 방지합니다. 배포 패키지 검사는 주소가 이미 점유된 상태에서도 서버와 네이티브 창이 열리는지 확인합니다.

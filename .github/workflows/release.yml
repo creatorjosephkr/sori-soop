@@ -122,8 +122,8 @@ jobs:
               echo 'Refusing to overwrite an already-published release'
               exit 1
             fi
-            gh release edit "$TAG" --target "$GITHUB_SHA" --notes-file docs/release-1.0.0.md
+            gh release edit "$TAG" --target "$GITHUB_SHA" --notes-file "docs/release-${TAG#v}.md"
             gh release upload "$TAG" --clobber artifacts/*.dmg artifacts/*.zip artifacts/SHA256SUMS.txt
           else
-            gh release create "$TAG" --target "$GITHUB_SHA" --draft --title "소리숲 $TAG" --notes-file docs/release-1.0.0.md artifacts/*.dmg artifacts/*.zip artifacts/SHA256SUMS.txt
+            gh release create "$TAG" --target "$GITHUB_SHA" --draft --title "소리숲 $TAG" --notes-file "docs/release-${TAG#v}.md" artifacts/*.dmg artifacts/*.zip artifacts/SHA256SUMS.txt
           fi

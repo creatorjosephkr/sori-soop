@@ -160,6 +160,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self.local_host():
             return self.reply({'error': '로컬 주소로 접속하세요.'}, 403)
+        if self.path == '/api/session' and hasattr(self.server,'studio_session'):
+            return self.reply(self.server.studio_session)
         if self.path == '/api/setup':
             return self.reply(installer.status())
         if self.path == '/api/jobs':
@@ -306,17 +308,19 @@ class Handler(BaseHTTPRequestHandler):
             self.reply({'error': '설정을 저장할 수 없습니다.'}, 500)
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', '8765'))
-    print(f'로컬 뮤직 스튜디오: http://127.0.0.1:{port}', flush=True)
     import signal
-    def stop(signum, frame):
-        raise KeyboardInterrupt
-    signal.signal(signal.SIGTERM, stop)
+    from local_server import backend_session
+    def stop(signum,frame):raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM,stop)
     try:
-        ThreadingHTTPServer(('127.0.0.1', port), Handler).serve_forever()
-    except KeyboardInterrupt:
-        installer.shutdown()
-        engine.cancel()
-        deadline = time.monotonic() + 5
-        while engine.ACTIVE and time.monotonic() < deadline:
-            time.sleep(0.05)
+        with backend_session(Handler,DATA,int(os.environ.get('PORT','8765'))) as session:
+            print('소리숲: '+session.url,flush=True)
+            try:
+                if session.owned:threading.Event().wait()
+                else:print('실행 중인 소리숲 서버를 사용합니다.',flush=True)
+            finally:
+                if session.owned:
+                    installer.shutdown();engine.cancel()
+                    deadline=time.monotonic()+5
+                    while engine.ACTIVE and time.monotonic()<deadline:time.sleep(.05)
+    except KeyboardInterrupt:pass

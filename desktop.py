@@ -30,6 +30,9 @@ def configure(testing=False):
     os.environ.setdefault('DO_NOT_TRACK','1')
     from app_paths import DATA
     DATA.mkdir(parents=True,exist_ok=True)
+    if getattr(sys,'frozen',False) and not testing:
+        sys.stdout=(DATA/'desktop.log').open('a',encoding='utf-8',buffering=1)
+        sys.stderr=sys.stdout
     if sys.stdout is None:sys.stdout=(DATA/'desktop.log').open('a',encoding='utf-8',buffering=1)
     if sys.stderr is None:sys.stderr=sys.stdout
     return root,DATA
@@ -63,9 +66,17 @@ def notify_error(message):
 
 def run(args,root,data):
     import app,engine,installer
-    server=app.ThreadingHTTPServer(('127.0.0.1',0 if args.self_test or args.smoke_ui else int(os.environ.get('PORT','8765'))),app.Handler)
-    threading.Thread(target=server.serve_forever,daemon=True).start()
-    url='http://127.0.0.1:'+str(server.server_port)
+    from local_server import backend_session
+    preferred=int(os.environ.get('PORT','8765'))
+    # Test the real collision path too, rather than always hiding it with port 0.
+    reserved=None
+    if args.self_test or args.smoke_ui:
+        import socket
+        reserved=socket.socket();reserved.bind(('127.0.0.1',0));reserved.listen(1)
+        preferred=reserved.getsockname()[1]
+    session_context=backend_session(app.Handler,data,preferred)
+    session=session_context.__enter__()
+    url=session.url
     result={'ok':False}
     try:
         if args.self_test:
@@ -77,7 +88,8 @@ def run(args,root,data):
             assert not any(status['ready'].values())
             assert ENGINE_ROOT==data/'engines'
             subprocess.run([uv_path(),'--version'],check=True)
-            result={'ok':True,'mode':'packaged-server','resources':True,'firstRunReady':True,'uv':True}
+            assert int(url.rsplit(':',1)[1])!=preferred
+            result={'ok':True,'mode':'packaged-server','resources':True,'firstRunReady':True,'uv':True,'portCollisionHandled':int(url.rsplit(':',1)[1])!=preferred}
         else:
             import webview
             webview.settings['ALLOW_DOWNLOADS']=True
@@ -88,7 +100,7 @@ def run(args,root,data):
                     try:
                         for _ in range(120):
                             if window.evaluate_js("!!document.getElementById('prompt') && typeof state !== 'undefined' && !!state && !!document.querySelector('[data-setup]')"):
-                                result.update(ok=True,mode='native-webview',version=window.evaluate_js("document.querySelector('.app-version').textContent"));break
+                                result.update(ok=True,mode='native-webview',version=window.evaluate_js("document.querySelector('.app-version').textContent"),portCollisionHandled=int(url.rsplit(':',1)[1])!=preferred);break
                             time.sleep(.5)
                     except Exception as error:result.update(error=str(error))
                     finally:window.destroy()
@@ -97,9 +109,12 @@ def run(args,root,data):
             if not args.smoke_ui:result.update(ok=True,mode='native-webview')
         return result
     finally:
-        installer.shutdown();engine.cancel();server.shutdown();server.server_close()
-        deadline=time.monotonic()+5
-        while engine.ACTIVE and time.monotonic()<deadline:time.sleep(.05)
+        if session.owned:
+            installer.shutdown();engine.cancel()
+            deadline=time.monotonic()+5
+            while engine.ACTIVE and time.monotonic()<deadline:time.sleep(.05)
+        session_context.__exit__(None,None,None)
+        if reserved:reserved.close()
 
 def main():
     parser=argparse.ArgumentParser()
