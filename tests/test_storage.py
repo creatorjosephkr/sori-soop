@@ -30,4 +30,5 @@ class StorageTests(unittest.TestCase):
 
     def test_readonly_location_reports_path_without_silent_fallback(self):
         with patch.object(storage,'STORAGE',Path('/Volumes/ReadOnly/SoriSoop Data')),patch.object(Path,'mkdir',side_effect=PermissionError('read-only')):
-            with self.assertRaisesRegex(RuntimeError,'/Volumes/ReadOnly/SoriSoop Data'):storage.prepare()
+            with self.assertRaises(RuntimeError) as error:storage.prepare()
+            self.assertIn(str(storage.STORAGE),str(error.exception))
