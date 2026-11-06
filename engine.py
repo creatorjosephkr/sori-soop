@@ -78,8 +78,6 @@ def start(settings, prompt, available=None, lyrics='', language='ko', title=''):
     if settings['model'] != ('ace-step' if song else 'small-music'):
         raise ValueError('배경음악에는 Small-Music, 보컬 노래에는 ACE-Step을 선택하세요.')
     if song:
-        if len(prompt.strip()) > 512:
-            raise ValueError('노래의 음악 설명은 512자 이내로 입력하세요.')
         if not isinstance(lyrics, str) or not lyrics.strip() or len(lyrics) > 4000:
             raise ValueError('노래 가사를 1~4000자로 입력하세요.')
         prepared=song_lyrics.prepare(lyrics,settings.get('instrumentalEdges',True))
@@ -114,7 +112,7 @@ def translate_job(job):
     global PROCESS
     source=job.get('generationInputPrompt',job['prompt'])
     if not translation.has_korean(source):
-        if len(source)>(512 if job['settings']['mode']=='song' else 2000):raise ValueError('음악 설명과 Intro·Outro 연주 설명이 너무 깁니다. 설명을 줄여 주세요.')
+        if job['settings']['mode']!='song' and len(source)>2000:raise ValueError('음악 설명과 Intro·Outro 연주 설명이 너무 깁니다. 설명을 줄여 주세요.')
         if source!=job['prompt']:job['generationPrompt']=source;save(job)
         return True
     python, _ = translation.runtime_paths()
@@ -143,9 +141,8 @@ def translate_job(job):
     text=result.get('text')
     if not isinstance(text,str) or not text.strip() or translation.has_korean(text):
         raise ValueError('영어 음악 설명을 만들지 못했습니다. 다시 시도하거나 영어로 입력해 주세요.')
-    limit=512 if job['settings']['mode']=='song' else 2000
-    if len(text)>limit:
-        raise ValueError(f'영어로 변환한 음악 설명이 {limit}자를 넘었습니다. 음악 설명을 줄여 주세요.')
+    if job['settings']['mode']!='song' and len(text)>2000:
+        raise ValueError('영어로 변환한 음악 설명이 2000자를 넘었습니다. 음악 설명을 줄여 주세요.')
     job['generationPrompt']=text
     job['translation']={'model':result['model'],'revision':result['revision'],'sourceLanguage':'ko','targetLanguage':'en'}
     job['phase']='음악 모델을 준비하고 있습니다'
@@ -216,6 +213,10 @@ def run(job):
             job['status']='failed'
             job['exitCode']=code
             job['error'],job['errorDetails']=generation_failure(code,log.read_text(errors='replace',encoding='utf-8'),platform.system()=='Windows')
+            check_path=DATA/'jobs'/(job['id']+'.input-check.json')
+            if song and check_path.exists():
+                check=json.loads(check_path.read_text(encoding='utf-8'))
+                if not check.get('ok') and check.get('error'):job['error']=check['error']
 
         else:
             with wave.open(str(out)) as w:
