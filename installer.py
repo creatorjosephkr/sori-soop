@@ -107,7 +107,7 @@ def run_queue(components):
 def run(component):
     global PROCESS
     log=DATA/('setup-'+component+'.log')
-    env={**os.environ,'LOCAL_MUSIC_RESOURCES':str(ROOT),'LOCAL_MUSIC_ENGINES':str(ENGINE_ROOT),'LOCAL_MUSIC_UV':uv_path(),'HF_HUB_DISABLE_TELEMETRY':'1','DO_NOT_TRACK':'1','PYTHONUNBUFFERED':'1','HF_HUB_DISABLE_PROGRESS_BARS':'0','TQDM_MININTERVAL':'1'}
+    env={**os.environ,'LOCAL_MUSIC_RESOURCES':str(ROOT),'LOCAL_MUSIC_ENGINES':str(ENGINE_ROOT),'LOCAL_MUSIC_UV':uv_path(),'HF_HUB_DISABLE_TELEMETRY':'1','HF_HUB_DISABLE_XET':'1','HF_HUB_DOWNLOAD_TIMEOUT':'30','HF_HUB_ETAG_TIMEOUT':'15','DO_NOT_TRACK':'1','PYTHONUNBUFFERED':'1','HF_HUB_DISABLE_PROGRESS_BARS':'0','TQDM_MININTERVAL':'1'}
     options={'creationflags':subprocess.CREATE_NEW_PROCESS_GROUP} if os.name=='nt' else {'start_new_session':True}
     with log.open('w',encoding='utf-8',buffering=1) as output:
         output.write('준비 작업을 시작합니다. 실행 환경과 필요한 파일을 확인하고 있습니다.\n');output.flush()
