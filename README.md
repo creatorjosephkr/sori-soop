@@ -9,7 +9,7 @@
 
 - Apple Silicon Mac(macOS 14 이상): `macos-arm64.dmg`를 열고 `SoriSoop.app`을 Applications에 복사합니다.
 - Windows 10/11 x64: `windows-x64.zip` 전체를 압축 해제한 뒤 `SoriSoop.exe`를 실행합니다. Microsoft Edge WebView2 Runtime이 필요합니다.
-- 첫 실행 화면에서 사용할 기능의 ‘준비’ 버튼을 누릅니다. 배포용 앱은 Python·Git을 별도로 설치할 필요가 없습니다. 모델 준비와 최초 모델 다운로드에는 인터넷을 사용합니다.
+- 첫 실행 시 안내와 함께 배경음악·한글 번역·노래의 실행 환경과 모델을 순서대로 자동 준비합니다. 이미 설치된 항목은 건너뛰며, 실패하면 안내에 따라 다시 시도할 수 있습니다. 배포용 앱은 Python·Git을 별도로 설치할 필요가 없습니다. 첫 실행 자동 준비에는 인터넷과 16GB 이상의 여유 공간이 필요합니다.
 - Windows 1.0.0은 CPU 실행 경로입니다. 구형 GPU에 의존하지 않으며 노래 생성은 오래 걸릴 수 있습니다. Windows에서의 노래 생성 성능과 다양한 GPU 조합은 별도 검증 대상입니다.
 - 현재 배포본은 Developer ID 공증/Authenticode 서명이 없습니다. 운영체제의 출처 확인 안내가 표시될 수 있습니다.
 

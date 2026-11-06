@@ -16,6 +16,7 @@ def configure(testing=False):
     root=Path(getattr(sys,'_MEIPASS',Path(__file__).resolve().parent))
     os.environ.setdefault('LOCAL_MUSIC_RESOURCES',str(root))
     if testing:
+        os.environ['LOCAL_MUSIC_AUTO_SETUP']='0'
         os.environ['LOCAL_MUSIC_DATA']=tempfile.mkdtemp(prefix='sorisup-check-')
         os.environ['LOCAL_MUSIC_ENGINES']=str(Path(os.environ['LOCAL_MUSIC_DATA'])/'engines')
     elif getattr(sys,'frozen',False):

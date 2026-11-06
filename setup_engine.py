@@ -12,5 +12,11 @@ python=folder/('.venv/Scripts/python.exe' if platform.system()=='Windows' else '
 if not python.exists():subprocess.run([uv_path(),'venv','--python','3.11',str(folder/'.venv')],check=True)
 requirements=ROOT/'requirements-mlx.lock' if backend=='mlx' else folder/'requirements.txt'
 subprocess.run([uv_path(),'pip','install','--python',str(python),'-r',str(requirements)],check=True)
-print('실행 환경을 설치했습니다. 모델은 첫 생성 시 다운로드합니다.')
+# Download only the small-music generation weights, without loading models into RAM.
+code="import sys;sys.path.insert(0,"+repr(str(folder/'scripts'))+");from weights import ensure_local;"
+files=(['models/mlx/t5gemma_f16.npz','models/mlx/dit_sm-music_f16.npz','models/mlx/same_s_decoder_f32.npz'] if backend=='mlx'
+       else ['models/tflite/t5gemma/encoder_fp16.tflite','models/tflite/sa3-sm-music/dit_w8a8.tflite','models/tflite/same-s/dec_w8a8.tflite'])
+code+="[ensure_local(path) for path in "+repr(files)+"]"
+subprocess.run([str(python),'-c',code],check=True)
+print('배경음악 실행 환경과 모델 준비를 마쳤습니다.')
 print('모델 약관: https://huggingface.co/stabilityai/stable-audio-3-small-music')

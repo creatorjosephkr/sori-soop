@@ -6,6 +6,7 @@
     let pending=null,manualPending=false,opener=null,checking=false;
     function present(){
         if(!pending||document.querySelector('dialog[open]'))return;
+        if(!manualPending&&document.getElementById('model-setup')?.getAttribute('aria-busy')==='true')return;
         // Keep startup notices out of an active generation workflow.
         if(!manualPending&&typeof jobHistory!=='undefined'&&jobHistory.some(j=>['queued','running'].includes(j.status)))return;
         opener=document.activeElement;
