@@ -10,15 +10,22 @@ from model_download import DownloadWatchdog,materialize,AnonymousNotice
 
 class ModelDownloadTests(unittest.TestCase):
     def test_idle_download_times_out_but_activity_resets_watchdog(self):
-        stalled=threading.Event()
-        with DownloadWatchdog(stalled.set,idle_seconds=.12) as watchdog:
-            for _ in range(3):time.sleep(.06);watchdog.touch();self.assertFalse(stalled.is_set())
-            self.assertTrue(stalled.wait(.5))
-        self.assertFalse(watchdog.thread.is_alive())
+        stalled=threading.Event();now=[0];ticks=iter((5,9,18,20))
+        with patch('model_download.time.monotonic',side_effect=lambda:now[0]):
+            watchdog=DownloadWatchdog(stalled.set,idle_seconds=10)
+            def tick(_):
+                now[0]=next(ticks)
+                if now[0]==9:watchdog.touch()
+                return False
+            with patch.object(watchdog.stop,'wait',side_effect=tick) as wait:
+                watchdog.run()
+            self.assertTrue(stalled.is_set())
+            self.assertEqual(now[0],20)
+            self.assertEqual(wait.call_count,4)
 
     def test_normal_completion_stops_watchdog(self):
         stalled=threading.Event()
-        with DownloadWatchdog(stalled.set,idle_seconds=.05):pass
+        with DownloadWatchdog(stalled.set,idle_seconds=60):pass
         self.assertFalse(stalled.wait(.1))
 
     def test_place_model_and_repair_broken_link(self):
