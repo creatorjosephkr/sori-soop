@@ -1,6 +1,6 @@
 # 소리숲 · Local Music Studio
 
-앱 버전: 1.0.0 (`VERSION`, 앱 메타데이터 및 사이드바 이름 옆에 표시).
+<img width="3424" height="2240" alt="image" src="https://github.com/user-attachments/assets/98030156-8362-4a37-a997-fb6ea6ef45ec" />
 
 
 ## 다운로드 및 실행
