@@ -6,7 +6,7 @@ Mac: DMG를 열고 앱을 설치할 드라이브의 폴더로 SoriSoop.app을 �
 Apple Silicon / macOS 14 이상을 대상으로 합니다.
 Windows: SoriSoop-1.0.0-windows-x64-setup.exe를 실행하고 화면 안내에 따라 설치하세요.
 Windows 10 버전 2004 이상 또는 Windows 11의 x64 PC가 필요합니다.
-앱과 바로가기를 설치하고, 필요한 경우 WebView2와 Visual C++ 실행 도구를 함께 설치합니다.
+Python을 포함한 앱과 바로가기를 설치하고, 필요한 경우 WebView2와 Visual C++ 실행 도구를 함께 설치합니다.
 Windows 권한 요청이 나타나면 허용해 주세요. 폴더 복사나 별도 도구 다운로드는 필요하지 않습니다.
 
 첫 실행 시 별도 모달창에서 배경음악·한국어 번역·노래 기능을 자동으로 준비합니다.

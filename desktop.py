@@ -71,7 +71,7 @@ def run(args,root,data):
     preferred=int(os.environ.get('PORT','8765'))
     # Test the real collision path too, rather than always hiding it with port 0.
     reserved=None
-    if args.self_test or args.smoke_ui:
+    if args.self_test or args.smoke_ui or args.bootstrap_test:
         import socket
         reserved=socket.socket();reserved.bind(('127.0.0.1',0));reserved.listen(1)
         preferred=reserved.getsockname()[1]
@@ -91,6 +91,10 @@ def run(args,root,data):
             subprocess.run([uv_path(),'--version'],check=True)
             assert int(url.rsplit(':',1)[1])!=preferred
             result={'ok':True,'mode':'packaged-server','resources':True,'firstRunReady':True,'uv':True,'portCollisionHandled':int(url.rsplit(':',1)[1])!=preferred}
+        elif args.bootstrap_test:
+            installer.SCRIPTS['bootstrap-check']='setup_bootstrap_check.py'
+            installer.run('bootstrap-check')
+            result={'ok':True,'mode':'first-run-bootstrap','bundledPython':True,'copyBasedVenv':True,'offlinePackageInstall':True,'noManagedLinks':True}
         else:
             import webview
             webview.settings['ALLOW_DOWNLOADS']=True
@@ -119,8 +123,8 @@ def run(args,root,data):
 
 def main():
     parser=argparse.ArgumentParser()
-    parser.add_argument('--self-test',action='store_true');parser.add_argument('--smoke-ui',action='store_true');parser.add_argument('--report')
-    args=parser.parse_args();testing=args.self_test or args.smoke_ui
+    parser.add_argument('--bootstrap-test',action='store_true');parser.add_argument('--self-test',action='store_true');parser.add_argument('--smoke-ui',action='store_true');parser.add_argument('--report')
+    args=parser.parse_args();testing=args.self_test or args.smoke_ui or args.bootstrap_test
     root,data=configure(testing)
     try:
         with contextlib.nullcontext() if testing else instance_lock(data):result=run(args,root,data)

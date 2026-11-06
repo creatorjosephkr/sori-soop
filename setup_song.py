@@ -4,7 +4,7 @@ import platform
 import re
 import subprocess
 import tomllib
-from app_paths import ROOT,ENGINE_ROOT,uv_path
+from app_paths import ROOT,ENGINE_ROOT,uv_path,create_venv
 from runtime_download import install_source
 
 print('1/4 · 노래 엔진 파일을 확인하고 내려받습니다.',flush=True)
@@ -12,7 +12,7 @@ repo=ENGINE_ROOT/'ace-step'
 install_source('ace-step/ACE-Step-1.5',(ROOT/'song-engine-version.txt').read_text(encoding='utf-8').strip(),repo)
 python=repo/('.venv/Scripts/python.exe' if platform.system()=='Windows' else '.venv/bin/python')
 print('2/4 · 노래 실행 환경과 필요한 프로그램을 설치합니다.',flush=True)
-if not python.exists():subprocess.run([uv_path(),'venv','--python','3.11',str(repo/'.venv')],check=True)
+create_venv(repo/'.venv')
 if platform.system()=='Darwin':
     requirements=ROOT/'requirements-song-mac.lock'
 else:

@@ -9,11 +9,12 @@ import signal
 import subprocess
 import threading
 import storage
-from app_paths import ROOT,DATA,ENGINE_ROOT,uv_path
+from app_paths import ROOT,DATA,ENGINE_ROOT,uv_path,bootstrap_python
 
 LOCK=threading.Lock()
 STATE={'active':False,'component':None,'state':'idle','error':None}
 PROCESS=None
+SETUP_REVISION='bundled-python-v1'
 SCRIPTS={'bgm':'setup_engine.py','translation':'setup_translation.py','song':'setup_song.py'}
 
 def active():
@@ -28,13 +29,13 @@ def bgm_weights_ready(backend):
 def saved_error():
     try:
         saved=json.loads((DATA/'first-setup.json').read_text(encoding='utf-8'))
-        return saved.get('error') if saved.get('storageRoot')==str(storage.STORAGE) else None
+        return saved.get('error') if saved.get('storageRoot')==str(storage.STORAGE) and saved.get('setupRevision')==SETUP_REVISION else None
     except (OSError,ValueError,AttributeError):return None
 
 def remember(error=None):
     DATA.mkdir(parents=True,exist_ok=True)
     path=DATA/'first-setup.json';tmp=path.with_suffix('.tmp')
-    tmp.write_text(json.dumps({'error':error,'storageRoot':str(storage.STORAGE)},ensure_ascii=False),encoding='utf-8');tmp.replace(path)
+    tmp.write_text(json.dumps({'error':error,'storageRoot':str(storage.STORAGE),'setupRevision':SETUP_REVISION},ensure_ascii=False),encoding='utf-8');tmp.replace(path)
 
 
 def log_tail(component):
@@ -108,12 +109,17 @@ def run(component):
     global PROCESS
     log=DATA/('setup-'+component+'.log')
     env={**os.environ,'LOCAL_MUSIC_RESOURCES':str(ROOT),'LOCAL_MUSIC_ENGINES':str(ENGINE_ROOT),'LOCAL_MUSIC_UV':uv_path(),'HF_HUB_DISABLE_TELEMETRY':'1','HF_HUB_DISABLE_XET':'1','HF_HUB_DOWNLOAD_TIMEOUT':'30','HF_HUB_ETAG_TIMEOUT':'15','DO_NOT_TRACK':'1','PYTHONUNBUFFERED':'1','HF_HUB_DISABLE_PROGRESS_BARS':'0','TQDM_MININTERVAL':'1'}
+    python=bootstrap_python()
+    command=[python,str(ROOT/SCRIPTS[component])] if python else [uv_path(),'run','--no-project','--python','3.11',str(ROOT/SCRIPTS[component])]
+    if python:
+        env.update(LOCAL_MUSIC_BOOTSTRAP_PYTHON=python,UV_PYTHON_DOWNLOADS='never',UV_NO_MANAGED_PYTHON='1',UV_NO_CONFIG='1',UV_LINK_MODE='copy',PYTHONDONTWRITEBYTECODE='1')
+        for key in ('PYTHONHOME','PYTHONPATH','VIRTUAL_ENV'):env.pop(key,None)
     options={'creationflags':subprocess.CREATE_NEW_PROCESS_GROUP} if os.name=='nt' else {'start_new_session':True}
     with log.open('w',encoding='utf-8',buffering=1) as output:
         output.write('준비 작업을 시작합니다. 실행 환경과 필요한 파일을 확인하고 있습니다.\n');output.flush()
         with LOCK:
             if STATE['state']=='cancelled':return
-            PROCESS=subprocess.Popen([uv_path(),'run','--no-project','--python','3.11',str(ROOT/SCRIPTS[component])],cwd=ROOT,env=env,stdout=output,stderr=subprocess.STDOUT,**options)
+            PROCESS=subprocess.Popen(command,cwd=ROOT,env=env,stdout=output,stderr=subprocess.STDOUT,**options)
             process=PROCESS
         code=process.wait(timeout=5400)
     if code:raise RuntimeError('준비하지 못했습니다. 인터넷 연결과 저장 공간을 확인한 뒤 다시 시도해 주세요.')

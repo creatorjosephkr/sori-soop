@@ -8,7 +8,7 @@ from app_paths import STORAGE, ENGINE_ROOT
 def configure_caches():
     defaults={'LOCAL_MUSIC_STORAGE':STORAGE,'LOCAL_MUSIC_ENGINES':ENGINE_ROOT,
               'HF_HOME':STORAGE/'cache'/'huggingface','HF_HUB_CACHE':STORAGE/'cache'/'huggingface'/'hub',
-              'UV_CACHE_DIR':STORAGE/'cache'/'uv','UV_PYTHON_INSTALL_DIR':STORAGE/'python',
+              'UV_DATA_DIR':STORAGE/'uv','UV_CACHE_DIR':STORAGE/'cache'/'uv','UV_PYTHON_INSTALL_DIR':STORAGE/'python',
               'UV_TOOL_DIR':STORAGE/'tools','UV_PYTHON_BIN_DIR':STORAGE/'bin'}
     for key,value in defaults.items():os.environ.setdefault(key,str(value))
 

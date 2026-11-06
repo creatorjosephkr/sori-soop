@@ -3,7 +3,7 @@ import platform
 import os
 import time
 import subprocess
-from app_paths import ROOT,ENGINE_ROOT,uv_path
+from app_paths import ROOT,ENGINE_ROOT,uv_path,create_venv
 from runtime_download import install_source
 
 print('1/4 · 배경음악 엔진 파일을 확인하고 내려받습니다.',flush=True)
@@ -13,7 +13,7 @@ backend='mlx' if platform.system()=='Darwin' and platform.machine()=='arm64' els
 folder=repo/'optimized'/backend
 python=folder/('.venv/Scripts/python.exe' if platform.system()=='Windows' else '.venv/bin/python')
 print('2/4 · 배경음악 Python 실행 환경을 준비합니다.',flush=True)
-if not python.exists():subprocess.run([uv_path(),'venv','--python','3.11',str(folder/'.venv')],check=True)
+create_venv(folder/'.venv')
 requirements=ROOT/'requirements-mlx.lock' if backend=='mlx' else folder/'requirements.txt'
 print('3/4 · 배경음악에 필요한 프로그램을 설치합니다.',flush=True)
 subprocess.run([uv_path(),'pip','install','--python',str(python),'-r',str(requirements)],check=True)
