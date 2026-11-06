@@ -10,7 +10,6 @@
     }
     function close(){pendingOpen=false;panel.close();}
     opener.onclick=()=>{show();update();};
-    document.getElementById('close-setup').onclick=close;
     document.getElementById('setup-done').onclick=close;
     panel.addEventListener('close',()=>previousFocus?.focus({preventScroll:true}));
     // Escape uses the native dialog close behavior; it does not cancel installation.
