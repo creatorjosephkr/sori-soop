@@ -14,7 +14,7 @@ from app_paths import ROOT,DATA,ENGINE_ROOT,uv_path,bootstrap_python,background_
 LOCK=threading.Lock()
 STATE={'active':False,'component':None,'state':'idle','error':None}
 PROCESS=None
-SETUP_REVISION='background-setup-v2'
+SETUP_REVISION='windows-song-runtime-v3'
 SCRIPTS={'bgm':'setup_engine.py','translation':'setup_translation.py','song':'setup_song.py'}
 
 def active():
@@ -90,7 +90,9 @@ def run_queue(components):
             with LOCK:
                 if STATE['state']=='cancelled':return
                 STATE.update(component=component,step=index,total=len(components),componentStartedAt=time.time())
-            if shutil.disk_usage(ENGINE_ROOT).free<(16 if component=='song' else 3)*1024**3:
+            import song_runtime
+            required=16 if component=='song' and not song_runtime.models_ready(ENGINE_ROOT/'ace-step') else 3
+            if shutil.disk_usage(ENGINE_ROOT).free<required*1024**3:
                 raise RuntimeError('저장 공간이 부족합니다. 노래는 16GB, 나머지는 3GB 이상의 여유 공간을 확보한 뒤 다시 시도해 주세요.')
             run(component)
             if not status()['ready'][component]:raise RuntimeError('설치 결과를 확인하지 못했습니다. 다시 준비해 주세요.')

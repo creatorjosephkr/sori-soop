@@ -4,6 +4,7 @@ import platform
 import re
 import subprocess
 import tomllib
+from song_runtime import VERSIONS
 from app_paths import ROOT,ENGINE_ROOT,uv_path,create_venv,background_options
 from runtime_download import install_source
 
@@ -17,12 +18,21 @@ if platform.system()=='Darwin':
     requirements=ROOT/'requirements-song-mac.lock'
 else:
     # This release intentionally runs Windows through CPU, compatible with older GPUs.
-    subprocess.run([uv_path(),'pip','install','--python',str(python),'torch','torchvision','torchaudio','--index-url','https://download.pytorch.org/whl/cpu'],check=True,**background_options())
+    subprocess.run([uv_path(),'pip','install','--python',str(python),*[name+'=='+version for name,version in VERSIONS.items()],'--reinstall-package','torch','--reinstall-package','torchvision','--reinstall-package','torchaudio','--index-url','https://download.pytorch.org/whl/cpu'],check=True,**background_options())
     deps=tomllib.loads((repo/'pyproject.toml').read_text(encoding='utf-8'))['project']['dependencies']
     excluded={'torch','torchvision','torchaudio','mlx','mlx-lm','nano-vllm'}
     deps=[dep for dep in deps if re.split(r'[<>=;\[ ]',dep)[0] not in excluded]
     requirements=repo/'sorisup-cpu-requirements.txt';requirements.write_text('\n'.join(deps)+'\n', encoding='utf-8')
-subprocess.run([uv_path(),'pip','install','--python',str(python),'-r',str(requirements)],check=True,**background_options())
+constraint=[] if platform.system()=='Darwin' else ['-c',str(ROOT/'requirements-song-windows-cpu.lock')]
+subprocess.run([uv_path(),'pip','install','--python',str(python),'-r',str(requirements),*constraint],check=True,**background_options())
+if platform.system()=='Windows':
+    print('노래 실행 패키지와 DLL 호환성을 검사합니다.',flush=True)
+    report=repo/'.sorisup-song-runtime-check.json'
+    subprocess.run([str(python),str(ROOT/'song_runtime.py'),'--folder',str(repo),'--report',str(report)],check=True,**background_options())
+    report.replace(repo/'.sorisup-song-runtime.json')
+if os.environ.get('LOCAL_MUSIC_SONG_RUNTIME_ONLY')=='1':
+    print('노래 실행 패키지 검사 완료 · 모델 다운로드는 생략합니다.',flush=True)
+    raise SystemExit(0)
 env={**os.environ,'HF_HUB_DISABLE_XET':'1','HF_HUB_DISABLE_TELEMETRY':'1'}
 print('3/4 · 노래 생성·보컬 모델 파일을 다운로드합니다.',flush=True)
 revision=(ROOT/'song-model-version.txt').read_text(encoding='utf-8').strip()

@@ -1,0 +1,37 @@
+name: Windows song runtime
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'setup_song.py'
+      - 'song_runtime.py'
+      - 'requirements-song-windows-cpu.lock'
+      - '.github/workflows/song-runtime.yml'
+permissions:
+  contents: read
+jobs:
+  windows-song-runtime:
+    runs-on: windows-2025
+    timeout-minutes: 25
+    env:
+      PYTHONUTF8: '1'
+      HF_HUB_DISABLE_TELEMETRY: '1'
+      DO_NOT_TRACK: '1'
+      LOCAL_MUSIC_SONG_RUNTIME_ONLY: '1'
+      LOCAL_MUSIC_ENGINES: '${{ github.workspace }}/runtime-check'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.11'
+      - run: python -m pip install uv==0.13.7
+      - run: python setup_song.py
+      - name: Upload native compatibility check
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: windows-song-runtime
+          path: runtime-check/ace-step/.sorisup-song-runtime.json
+          include-hidden-files: true
+          if-no-files-found: ignore

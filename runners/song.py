@@ -4,6 +4,9 @@ import json
 import os
 import sys
 from pathlib import Path
+if sys.platform=='win32':
+    import ctypes
+    ctypes.windll.kernel32.SetErrorMode(0x0001|0x0002|0x8000)
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))

@@ -9,6 +9,7 @@ import time
 import uuid
 import wave
 import translation
+import song_runtime
 from audio_processing import validate_peak_db, wav_peak_db
 from pathlib import Path
 
@@ -33,8 +34,7 @@ def song_paths():
 def ready(backend, model='small-music'):
     if model == 'ace-step':
         folder, python, script = song_paths()
-        components = ['acestep-v15-turbo/model.safetensors', 'vae/diffusion_pytorch_model.safetensors', 'Qwen3-Embedding-0.6B/model.safetensors', 'acestep-5Hz-lm-0.6B/model.safetensors']
-        return python.exists() and script.exists() and all((folder / 'checkpoints' / x).is_file() for x in components)
+        return python.exists() and script.exists() and song_runtime.models_ready(folder) and (platform.system()!='Windows' or song_runtime.ready(folder))
     folder, python, script = engine_paths(backend)
     return python.exists() and script.exists()
 

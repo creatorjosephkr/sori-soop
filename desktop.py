@@ -13,6 +13,9 @@ from pathlib import Path
 
 
 def configure(testing=False):
+    if sys.platform=='win32':
+        import ctypes
+        ctypes.windll.kernel32.SetErrorMode(0x0001|0x0002|0x8000)
     root=Path(getattr(sys,'_MEIPASS',Path(__file__).resolve().parent))
     os.environ.setdefault('LOCAL_MUSIC_RESOURCES',str(root))
     if testing:
