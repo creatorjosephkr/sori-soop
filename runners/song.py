@@ -30,7 +30,7 @@ p.add_argument('--progress',required=True)
 a=p.parse_args()
 job=json.loads(Path(a.request).read_text(encoding='utf-8'))
 caption=job.get('generationPrompt',job['prompt'])
-lyrics=job.get('generationLyrics',job['lyrics'])
+lyrics=job['lyrics']
 progress=Path(a.progress)
 def stage(text):
     temp=progress.with_suffix('.tmp')

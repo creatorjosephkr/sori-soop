@@ -34,7 +34,7 @@ def main():
             texts.append(target.decode(output))
         return ' '.join(texts)
     job=json.loads(Path(args.request).read_text(encoding='utf-8'))
-    english=translate_segments(job.get('generationInputPrompt',job['prompt']),translate)
+    english=translate_segments(job['prompt'],translate)
     result={'text':english,'model':MODEL_ID,'revision':REVISION}
     output=Path(args.out);pending=output.with_suffix('.tmp')
     pending.write_text(json.dumps(result,ensure_ascii=False), encoding='utf-8');pending.replace(output)

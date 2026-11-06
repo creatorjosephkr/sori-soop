@@ -1,21 +1,29 @@
 import unittest
-from translation import translate_segments
-from song_lyrics import prepare,check_lyric_tokens,check_audio_codes
+from pathlib import Path
+import tempfile
+import threading
+from unittest.mock import patch
+import engine
+from song_lyrics import check_lyric_tokens,check_audio_codes
 
 class SongLyricsTests(unittest.TestCase):
-    def test_instrumental_descriptions_are_separate_and_vocal_lines_stay_in_order(self):
-        original='[인트로]\n(잔잔한 피아노 연주)\n[Verse 1]\n첫 번째 줄\n(함께 불러요)\n[Chorus]\n마지막 줄\n[Outro]\n피아노가 잦아든다'
-        result=prepare(original)
-        self.assertEqual(result['lyrics'],'[Intro]\n[Verse 1]\n\n첫 번째 줄\n(함께 불러요)\n[Chorus]\n\n마지막 줄\n[Outro]')
-        self.assertEqual([d['text'] for d in result['directions']],['잔잔한 피아노 연주','피아노가 잦아든다'])
-        self.assertIn('잔잔한 피아노',original)
+    def test_all_sections_and_descriptions_remain_in_lyrics_even_with_legacy_setting(self):
+        original='[intro]\n(잔잔한 피아노 연주)\n[Verse 1]\n첫 번째 줄\n(함께 불러요)\n[Chorus]\n마지막 줄\n[outro]\n(Piano fades out)'
+        with tempfile.TemporaryDirectory() as tmp,patch.object(engine,'DATA',Path(tmp)),patch.object(engine,'ready',return_value=True),patch.object(engine.translation,'ready',return_value=False),patch.object(threading.Thread,'start'):
+            try:
+                job=engine.start({'mode':'song','model':'ace-step','backend':'cpu','seconds':30,'instrumentalEdges':True},'Soft piano ballad',8,lyrics=original)
+                self.assertEqual(job['lyrics'],original)
+                self.assertEqual(job['prompt'],'Soft piano ballad')
+                for field in ('generationLyrics','lyricDirections','generationInputPrompt'):self.assertNotIn(field,job)
+            finally:engine.ACTIVE=None;engine.CURRENT=None
 
-    def test_vocal_intro_opt_out_and_same_line_lyrics_are_preserved(self):
-        original='[Intro]\n처음 노래해\n[Verse] 이어 노래해\n[Outro]\n끝을 노래해'
-        result=prepare(original,False)
-        self.assertEqual(result['directions'],[])
-        for line in ('처음 노래해','이어 노래해','끝을 노래해'):self.assertIn(line,result['lyrics'])
-        with self.assertRaises(ValueError):prepare('[Intro]\n피아노 연주\n[Outro]')
+    def test_translation_does_not_merge_lyrics_or_legacy_arrangement_field(self):
+        with tempfile.TemporaryDirectory() as tmp,patch.object(engine,'DATA',Path(tmp)),patch.object(engine.subprocess,'Popen') as launch:
+            job={'id':'e'*32,'prompt':'Warm piano','lyrics':'[Intro]\n한글 연주 설명','generationInputPrompt':'Warm piano\n한글 연주 설명','settings':{'mode':'song'}}
+            self.assertTrue(engine.translate_job(job))
+            launch.assert_not_called()
+            self.assertNotIn('generationPrompt',job)
+            self.assertEqual(job['lyrics'],'[Intro]\n한글 연주 설명')
 
     def test_token_overflow_and_incomplete_audio_codes_are_explicit_errors(self):
         tokenizer=lambda text,**kw:{'input_ids':list(range(2049))}
@@ -23,11 +31,3 @@ class SongLyricsTests(unittest.TestCase):
         self.assertEqual(check_lyric_tokens(lambda *a,**k:{'input_ids':[1]*2048},'가사','ko'),2048)
         with self.assertRaisesRegex(ValueError,'끝까지'):check_audio_codes('<|audio_code_1|>'*100,100)
         self.assertEqual(check_audio_codes('<|audio_code_1|>'*500,100),500)
-
-    def test_instrumental_heading_is_not_retranslated_with_korean_directions(self):
-        source='intro instrumental arrangement:\n잔잔한 피아노\noutro instrumental arrangement:\n부드럽게 끝나기'
-        parts=[]
-        def translate(text):parts.append(text);return 'soft piano' if text=='잔잔한 피아노' else 'gentle ending'
-        output=translate_segments(source,translate)
-        self.assertEqual(parts,['잔잔한 피아노','부드럽게 끝나기'])
-        self.assertIn('intro instrumental arrangement:\nsoft piano',output)

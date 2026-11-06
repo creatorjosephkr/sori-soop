@@ -1,28 +1,5 @@
-"""Preserve sung text while separating explicitly instrumental sections."""
+"""Validate full lyric and caption inputs without truncation or rearrangement."""
 import re
-
-TAG=re.compile(r'^\s*\[([^\]]+)\]\s*(.*)$')
-ALIASES={'인트로':'Intro','전주':'Intro','아웃트로':'Outro','아웃로':'Outro','후주':'Outro','간주':'Instrumental','벌스':'Verse','후렴':'Chorus','브릿지':'Bridge'}
-
-
-def prepare(text, instrumental_edges=True):
-    lines=[];directions=[];section=None
-    for line in text.splitlines():
-        match=TAG.match(line)
-        if match:
-            raw,following=match.groups();name=ALIASES.get(raw.strip(),raw.strip())
-            section=name.lower()
-            lines.append('['+name+']')
-            line=following
-        if instrumental_edges and section in ('intro','outro','instrumental'):
-            if line.strip():directions.append({'section':section,'text':line.strip().strip('()（）')})
-        else:lines.append(line)
-    lyrics='\n'.join(lines).strip()
-    # Section tags alone are not vocal lyrics.
-    sung='\n'.join(line for line in lines if line.strip() and not TAG.match(line))
-    if not sung.strip():raise ValueError('부를 가사가 없습니다. [Verse]나 [Chorus] 아래에 가사를 입력하거나 Intro·Outro 연주 처리를 꺼 주세요.')
-    return {'lyrics':lyrics,'directions':directions}
-
 
 def check_lyric_tokens(tokenizer, lyrics, language):
     formatted=f'# Languages\n{language}\n\n# Lyric\n{lyrics}<|endoftext|>'
@@ -42,6 +19,6 @@ def check_caption_tokens(tokenizer, text, *, formatted=True):
     """Count untruncated, real encoder tokens, including the caller's template."""
     count=len(tokenizer(text,truncation=False)['input_ids'])
     if count>256:
-        scope='번역된 음악 설명·연주 설명·내부 지시문 합계' if formatted else '번역된 음악 설명 자체'
-        raise ValueError(f'노래 설명이 엔진 한도(256토큰)를 초과했습니다: {scope} {count:,}토큰, 최소 {count-256:,}토큰 초과. 음악 설명이나 Intro·Outro 연주 설명을 줄여 다시 시도해 주세요. 설명은 자동으로 잘리지 않았습니다.')
+        scope='번역된 음악 설명·내부 지시문 합계' if formatted else '번역된 음악 설명 자체'
+        raise ValueError(f'노래 설명이 엔진 한도(256토큰)를 초과했습니다: {scope} {count:,}토큰, 최소 {count-256:,}토큰 초과. 음악 설명을 줄여 다시 시도해 주세요. 설명은 자동으로 잘리지 않았습니다.')
     return count
