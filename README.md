@@ -1,3 +1,12 @@
+<p align="center">
+  <img src="/joseph.jpg" width="60%" alt="크리에이터 요셉" /><br />
+  "나에게 필요한 앱을 바이브 코딩으로 직접 만드는 반백살 인디 개발자 아저씨입니다."
+</p>
+
+<br />
+<br />
+<br />
+
 # 소리숲 · Local Music Studio
 
 <img width="3424" height="2240" alt="image" src="https://github.com/user-attachments/assets/98030156-8362-4a37-a997-fb6ea6ef45ec" />
