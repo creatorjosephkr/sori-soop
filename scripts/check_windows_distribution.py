@@ -37,7 +37,8 @@ def main():
         env={**os.environ,'UV_PYTHON_INSTALL_DIR':str(blocked),'UV_PYTHON_DOWNLOADS':'never'}
         report=artifacts/'windows-bootstrap.json'
         subprocess.run([str(app),'--bootstrap-test','--report',str(report)],env=env,check=True,timeout=120)
-        assert json.loads(report.read_text(encoding='utf-8'))['noManagedLinks']
+        bootstrap=json.loads(report.read_text(encoding='utf-8'))
+        assert bootstrap['noManagedLinks'] and bootstrap['noConsoleWindow']
         marker=target/'SoriSoop Data'/'keep-existing-model.txt';marker.parent.mkdir(exist_ok=True);marker.write_text('preserve',encoding='utf-8')
         run([target/'unins000.exe','/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',f'/LOG={artifacts/"windows-uninstall.log"}'])
         deadline=time.monotonic()+30
@@ -45,7 +46,7 @@ def main():
         assert not app.exists(),'App was not uninstalled'
         assert marker.read_text(encoding='utf-8')=='preserve','User model data was removed'
         assert all(not path.exists() for path in shortcuts),'Shortcut was not uninstalled'
-        (artifacts/'windows-installer.json').write_text(json.dumps({'ok':True,'version':version,'prerequisiteInstallers':True,'installedApp':True,'shortcuts':True,'uninstall':True,'modelDataPreserved':True,'pathWithSpacesAndKorean':True,'firstRunSetup':True}),encoding='utf-8')
+        (artifacts/'windows-installer.json').write_text(json.dumps({'ok':True,'version':version,'prerequisiteInstallers':True,'installedApp':True,'shortcuts':True,'uninstall':True,'modelDataPreserved':True,'pathWithSpacesAndKorean':True,'firstRunSetup':True,'backgroundPreparation':True}),encoding='utf-8')
     finally:
         # Leave a failed installed app intact for CI diagnostics; successful test files only.
         if not app.exists():shutil.rmtree(testroot,ignore_errors=True)

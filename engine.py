@@ -12,7 +12,7 @@ import translation
 from audio_processing import validate_peak_db, wav_peak_db
 from pathlib import Path
 
-from app_paths import ROOT, ENGINE_ROOT
+from app_paths import ROOT, ENGINE_ROOT, background_options
 BASE = ENGINE_ROOT / 'stable-audio-3' / 'optimized'
 DATA = Path(os.environ.get('LOCAL_MUSIC_DATA', str(Path.home() / '.local-music-studio')))
 GUARD = threading.Lock()
@@ -118,7 +118,7 @@ def translate_job(job):
             job['status']='running';job['phase']='한글 음악 설명을 영어로 변환하고 있습니다';save(job)
             progress.write_text(json.dumps({'phase':job['phase']},ensure_ascii=False), encoding='utf-8')
             PROCESS=subprocess.Popen([str(python),'-u',str(ROOT/'runners'/'translate.py'),'--request',str(DATA/'jobs'/(job['id']+'.json')),'--out',str(output)],stdout=stream,stderr=subprocess.STDOUT,
-                env={**os.environ,'HF_HUB_OFFLINE':'1','TRANSFORMERS_OFFLINE':'1','HF_HUB_DISABLE_TELEMETRY':'1','DO_NOT_TRACK':'1'})
+                env={**os.environ,'HF_HUB_OFFLINE':'1','TRANSFORMERS_OFFLINE':'1','HF_HUB_DISABLE_TELEMETRY':'1','DO_NOT_TRACK':'1'},**background_options())
         process=PROCESS
         try:
             code=process.wait(timeout=180)
@@ -167,7 +167,7 @@ def run(job):
             if not song and script.name in ('sa3_mlx.py', 'sa3_tflite.py'):
                 args=[str(python),'-u',str(ROOT/'runners'/'bgm.py'),'--script',str(script),'--peak-db',str(job['settings']['peakDb']),*args[3:]]
             PROCESS=subprocess.Popen(args,cwd=folder,stdout=stream,stderr=subprocess.STDOUT,
-                    env={**os.environ,'HF_HUB_DISABLE_TELEMETRY':'1','DO_NOT_TRACK':'1','HF_HUB_DISABLE_XET':'1',**({'HF_HUB_OFFLINE':'1'} if song else {})})
+                    env={**os.environ,'HF_HUB_DISABLE_TELEMETRY':'1','DO_NOT_TRACK':'1','HF_HUB_DISABLE_XET':'1',**({'HF_HUB_OFFLINE':'1'} if song else {})},**background_options())
         with stream:
             try:
                 code=PROCESS.wait(timeout=1800)

@@ -165,3 +165,5 @@ GitHub Actions의 Desktop release를 수동 실행하거나 `v*` 태그를 푸�
 Windows 설치본에는 Microsoft의 공식 x64 WebView2 오프라인 설치 파일과 Visual C++ 재배포 도구를 포함합니다. 빌드 시 Microsoft 서명을 검증하고 `windows-prerequisites.json`에 버전과 SHA-256을 기록합니다. 설치 시 기존 도구를 확인해 필요한 항목만 설치하고, 이후 첫 실행에서 Python·음악 생성 패키지·모델을 자동으로 준비합니다. 기본 설치 위치는 사용자 Programs 폴더이며 다른 쓰기 가능한 드라이브를 선택할 수 있습니다. 제거 시 모델·음원·설정·기록과 다른 앱도 쓰는 Microsoft 실행 도구는 유지합니다. Windows 배포 검사는 실제 EXE 설치·바로가기·설치된 앱 실행·제거 후 모델 폴더 보존을 확인합니다.
 
 Windows는 Python 실행 환경을 설치 파일 안에 포함합니다. 첫 준비 시 uv의 Python 다운로드·minor-version junction을 사용하지 않으며, 각 모델 실행 환경은 번들 Python의 `venv --copies`로 생성합니다. uv 패키지 설치도 복사 방식과 Python 자동 다운로드 금지를 적용합니다. Windows 배포 검사에는 관리 Python 저장소가 사용할 수 없는 상태에서 설치된 앱의 첫 준비 명령을 실행하고, 가상환경 생성·오프라인 패키지 설치·재분석 지점이 없는지 확인하는 검사를 포함합니다.
+
+Windows의 준비·패키지 설치·모델 다운로드·음악 생성 도구는 CREATE_NO_WINDOW로 실행합니다. 별도 터미널 창 없이 준비 모달의 로그에서 진행 내용을 확인할 수 있습니다. 첫 준비 검사는 준비 작업과 그 하위 Python 실행에 콘솔이 생성되지 않는지도 확인합니다.

@@ -1,14 +1,16 @@
 """Offline regression check for first-run setup without managed-Python links."""
 import base64
+import ctypes
 import hashlib
 import os
 from pathlib import Path
 import subprocess
 import sys
 import zipfile
-from app_paths import ENGINE_ROOT,create_venv,uv_path,bootstrap_python
+from app_paths import ENGINE_ROOT,create_venv,uv_path,bootstrap_python,background_options
 
 assert sys.platform=='win32'
+assert ctypes.windll.kernel32.GetConsoleWindow()==0,'Preparation worker has a console window'
 assert bootstrap_python() and os.environ.get('UV_PYTHON_DOWNLOADS')=='never'
 folder=ENGINE_ROOT/'bootstrap-check';folder.mkdir(parents=True,exist_ok=True)
 create_venv(folder/'.venv')
@@ -20,8 +22,8 @@ files[info+'/RECORD']=(record+info+'/RECORD,,\n').encode()
 wheel=folder/(name+'-1.0.0-py3-none-any.whl')
 with zipfile.ZipFile(wheel,'w') as archive:
     for path,data in files.items():archive.writestr(path,data)
-subprocess.run([uv_path(),'pip','install','--python',str(python),'--offline','--no-python-downloads','--no-managed-python',str(wheel)],check=True)
-subprocess.run([str(python),'-c','import ssl,sqlite3,sorisoop_setup_probe;assert sorisoop_setup_probe.VALUE==42'],check=True)
+subprocess.run([uv_path(),'pip','install','--python',str(python),'--offline','--no-python-downloads','--no-managed-python',str(wheel)],check=True,**background_options())
+subprocess.run([str(python),'-c','import ctypes,ssl,sqlite3,sorisoop_setup_probe;assert ctypes.windll.kernel32.GetConsoleWindow()==0;assert sorisoop_setup_probe.VALUE==42'],check=True,**background_options())
 # No junctions or symbolic links are needed anywhere in this environment.
 assert all(not (path.lstat().st_file_attributes & 0x400) for path in (folder/'.venv').rglob('*'))
 print('Windows first-run setup verified: bundled Python, copied venv, offline package install, no junctions.',flush=True)

@@ -81,20 +81,20 @@ def run(args,root,data):
     result={'ok':False}
     try:
         if args.self_test:
-            from app_paths import uv_path,ENGINE_ROOT
+            from app_paths import uv_path,ENGINE_ROOT,background_options
             import subprocess
             for endpoint in ['/','/style.css','/app.js','/setup.js','/icons/sorisup.svg','/fonts/NotoSansKR-Variable.ttf','/spon/spon.svg']:
                 with urllib.request.urlopen(url+endpoint) as response:assert response.status==200
             status=json.load(urllib.request.urlopen(url+'/api/setup'))
             assert not any(status['ready'].values())
             assert ENGINE_ROOT==data/'engines'
-            subprocess.run([uv_path(),'--version'],check=True)
+            subprocess.run([uv_path(),'--version'],check=True,**background_options())
             assert int(url.rsplit(':',1)[1])!=preferred
             result={'ok':True,'mode':'packaged-server','resources':True,'firstRunReady':True,'uv':True,'portCollisionHandled':int(url.rsplit(':',1)[1])!=preferred}
         elif args.bootstrap_test:
             installer.SCRIPTS['bootstrap-check']='setup_bootstrap_check.py'
             installer.run('bootstrap-check')
-            result={'ok':True,'mode':'first-run-bootstrap','bundledPython':True,'copyBasedVenv':True,'offlinePackageInstall':True,'noManagedLinks':True}
+            result={'ok':True,'mode':'first-run-bootstrap','bundledPython':True,'copyBasedVenv':True,'offlinePackageInstall':True,'noManagedLinks':True,'noConsoleWindow':True}
         else:
             import webview
             webview.settings['ALLOW_DOWNLOADS']=True

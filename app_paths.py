@@ -39,7 +39,15 @@ def create_venv(folder):
     python=bootstrap_python()
     if python:
         # Re-running this refreshes redirects after upgrades, preserving site-packages.
-        subprocess.run([python,'-m','venv','--without-pip','--copies',str(folder)],check=True)
+        subprocess.run([python,'-m','venv','--without-pip','--copies',str(folder)],check=True,**background_options())
     else:
         executable=folder/('Scripts/python.exe' if sys.platform=='win32' else 'bin/python')
-        if not executable.exists():subprocess.run([uv_path(),'venv','--python','3.11',str(folder)],check=True)
+        if not executable.exists():subprocess.run([uv_path(),'venv','--python','3.11',str(folder)],check=True,**background_options())
+
+
+def background_options(group=False):
+    """Run console tools without a Windows console, keeping process cancellation available."""
+    import subprocess
+    if sys.platform=='win32':
+        return {'creationflags':subprocess.CREATE_NO_WINDOW | (subprocess.CREATE_NEW_PROCESS_GROUP if group else 0)}
+    return {'start_new_session':True} if group else {}

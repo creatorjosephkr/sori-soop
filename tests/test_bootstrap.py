@@ -14,7 +14,9 @@ class BootstrapTests(unittest.TestCase):
             with patch.object(app_paths,'ROOT',root),patch.dict(os.environ,{},clear=True),patch('subprocess.run') as run:
                 self.assertEqual(app_paths.bootstrap_python(),str(python))
                 app_paths.create_venv(venv)
-                run.assert_called_once_with([str(python),'-m','venv','--without-pip','--copies',str(venv)],check=True)
+                run.assert_called_once()
+                self.assertEqual(run.call_args.args[0],[str(python),'-m','venv','--without-pip','--copies',str(venv)])
+                self.assertTrue(run.call_args.kwargs['check'])
                 self.assertEqual(marker.read_text(),'keep')
 
     def test_missing_frozen_windows_python_does_not_download_again(self):

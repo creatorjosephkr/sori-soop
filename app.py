@@ -3,6 +3,7 @@ import engine
 import translation
 import installer
 import updates
+from app_paths import background_options
 from audio_processing import validate_peak_db
 import os
 import platform
@@ -36,7 +37,7 @@ MODELS = {
 
 def command(args):
     try:
-        return subprocess.check_output(args, timeout=5, stderr=subprocess.DEVNULL, text=True).strip()
+        return subprocess.check_output(args, timeout=5, stderr=subprocess.DEVNULL, text=True,**background_options()).strip()
     except (OSError, subprocess.SubprocessError):
         return ''
 

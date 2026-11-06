@@ -9,12 +9,12 @@ import signal
 import subprocess
 import threading
 import storage
-from app_paths import ROOT,DATA,ENGINE_ROOT,uv_path,bootstrap_python
+from app_paths import ROOT,DATA,ENGINE_ROOT,uv_path,bootstrap_python,background_options
 
 LOCK=threading.Lock()
 STATE={'active':False,'component':None,'state':'idle','error':None}
 PROCESS=None
-SETUP_REVISION='bundled-python-v1'
+SETUP_REVISION='background-setup-v2'
 SCRIPTS={'bgm':'setup_engine.py','translation':'setup_translation.py','song':'setup_song.py'}
 
 def active():
@@ -114,7 +114,7 @@ def run(component):
     if python:
         env.update(LOCAL_MUSIC_BOOTSTRAP_PYTHON=python,UV_PYTHON_DOWNLOADS='never',UV_NO_MANAGED_PYTHON='1',UV_NO_CONFIG='1',UV_LINK_MODE='copy',PYTHONDONTWRITEBYTECODE='1')
         for key in ('PYTHONHOME','PYTHONPATH','VIRTUAL_ENV'):env.pop(key,None)
-    options={'creationflags':subprocess.CREATE_NEW_PROCESS_GROUP} if os.name=='nt' else {'start_new_session':True}
+    options=background_options(group=True)
     with log.open('w',encoding='utf-8',buffering=1) as output:
         output.write('준비 작업을 시작합니다. 실행 환경과 필요한 파일을 확인하고 있습니다.\n');output.flush()
         with LOCK:
@@ -127,7 +127,7 @@ def run(component):
 def shutdown_process():
     with LOCK:process=PROCESS
     if process and process.poll() is None:
-        if os.name=='nt':subprocess.run(['taskkill','/PID',str(process.pid),'/T','/F'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        if os.name=='nt':subprocess.run(['taskkill','/PID',str(process.pid),'/T','/F'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,**background_options())
         else:
             try:os.killpg(process.pid,signal.SIGTERM)
             except ProcessLookupError:pass
