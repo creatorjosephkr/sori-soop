@@ -124,7 +124,7 @@ def run(component):
             PROCESS=subprocess.Popen(command,cwd=ROOT,env=env,stdout=output,stderr=subprocess.STDOUT,**options)
             process=PROCESS
         code=process.wait(timeout=5400)
-    if code:raise RuntimeError('준비하지 못했습니다. 인터넷 연결과 저장 공간을 확인한 뒤 다시 시도해 주세요.')
+    if code:raise RuntimeError('실행 환경 준비 또는 호환성 검사에 실패했습니다. 아래 설치 로그를 확인한 뒤 다시 시도해 주세요.')
 
 def shutdown_process():
     with LOCK:process=PROCESS

@@ -4,7 +4,7 @@ import platform
 import re
 import subprocess
 import tomllib
-from song_runtime import VERSIONS
+from song_runtime import VERSIONS,ready as runtime_ready
 from app_paths import ROOT,ENGINE_ROOT,uv_path,create_venv,background_options
 from runtime_download import install_source
 
@@ -30,6 +30,7 @@ if platform.system()=='Windows':
     report=repo/'.sorisup-song-runtime-check.json'
     subprocess.run([str(python),str(ROOT/'song_runtime.py'),'--folder',str(repo),'--report',str(report)],check=True,**background_options())
     report.replace(repo/'.sorisup-song-runtime.json')
+    if not runtime_ready(repo):raise RuntimeError('노래 실행 패키지 검증 기록을 확인하지 못했습니다.')
 if os.environ.get('LOCAL_MUSIC_SONG_RUNTIME_ONLY')=='1':
     print('노래 실행 패키지 검사 완료 · 모델 다운로드는 생략합니다.',flush=True)
     raise SystemExit(0)

@@ -3,6 +3,7 @@ import engine
 import translation
 import installer
 import updates
+import song_duration
 from app_paths import background_options
 from audio_processing import validate_peak_db
 import os
@@ -120,8 +121,14 @@ def read_settings():
         return {'policy': 'auto', 'mode': 'bgm'}
 
 def validate(settings):
+    settings=dict(settings)
     if settings.get('policy') not in ('auto', 'fixed', 'manual') or settings.get('mode') not in ('bgm', 'song'):
         raise ValueError('설정 방식 또는 제작 모드를 확인하세요.')
+    duration_mode=settings.get('durationMode','manual')
+    if duration_mode not in ('manual','auto') or (duration_mode=='auto' and settings['mode']!='song'):
+        raise ValueError('자동 길이는 노래 만들기에서만 사용할 수 있습니다.')
+    auto_length=song_duration.automatic(settings)
+    if auto_length:settings['seconds']=None
     if settings['policy'] != 'auto':
         model = settings.get('model')
         if model not in MODELS:
@@ -129,24 +136,24 @@ def validate(settings):
         if settings['mode'] == 'song' and not MODELS[model]['vocals']:
             raise ValueError('이 모델은 가사 기반 노래를 지원하지 않습니다.')
         seconds = settings.get('seconds')
-        if type(seconds) is not int or not 10 <= seconds <= MODELS[model]['maxSeconds']:
+        if not auto_length and (type(seconds) is not int or not 10 <= seconds <= MODELS[model]['maxSeconds']):
             raise ValueError('음악 길이가 모델 지원 범위를 벗어났습니다.')
         if settings.get('backend') not in ('cpu', 'apple'):
             raise ValueError('실행 방식을 확인하세요.')
     if settings['policy'] == 'auto' and 'seconds' in settings:
         model = 'ace-step' if settings['mode'] == 'song' else 'small-music'
         seconds = settings['seconds']
-        if type(seconds) is not int or not 10 <= seconds <= MODELS[model]['maxSeconds']:
+        if not auto_length and (type(seconds) is not int or not 10 <= seconds <= MODELS[model]['maxSeconds']):
             raise ValueError('음악 길이가 모델 지원 범위를 벗어났습니다.')
     validate_peak_db(settings.get('peakDb', -6))
-    return {k: settings[k] for k in ('policy', 'mode', 'model', 'seconds', 'backend', 'peakDb') if k in settings}
+    return {k: settings[k] for k in ('policy', 'mode', 'model', 'seconds', 'backend', 'peakDb', 'durationMode') if k in settings}
 
 def resolve_generation_settings(settings, info):
     resolved = dict(settings)
     if resolved['policy'] == 'auto':
         rec = recommend(info, resolved['mode'])
         resolved.update({key: rec[key] for key in ('model', 'backend')})
-        resolved.setdefault('seconds', rec['seconds'])
+        if not song_duration.automatic(resolved):resolved.setdefault('seconds', rec['seconds'])
     return resolved
 
 

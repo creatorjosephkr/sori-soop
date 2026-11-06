@@ -10,6 +10,7 @@ import uuid
 import wave
 import translation
 import song_runtime
+import song_duration
 from audio_processing import validate_peak_db, wav_peak_db
 from pathlib import Path
 
@@ -188,7 +189,9 @@ def run(job):
         else:
             with wave.open(str(out)) as w:
                 duration=w.getnframes()/w.getframerate()
-                if abs(duration-job['settings']['seconds'])>1: raise ValueError('결과 길이가 요청과 다릅니다.')
+                if song_duration.automatic(job['settings']):
+                    if not 10<=duration<=600:raise ValueError('자동으로 생성한 노래 길이가 지원 범위를 벗어났습니다.')
+                elif abs(duration-job['settings']['seconds'])>1:raise ValueError('결과 길이가 요청과 다릅니다.')
             job['outputPeakDb']=wav_peak_db(out)
             if job['outputPeakDb'] is not None and job['outputPeakDb'] > job['settings'].get('peakDb', -6) + 0.01:
                 raise ValueError('출력 최대 게인 검증에 실패했습니다.')
