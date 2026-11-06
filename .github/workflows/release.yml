@@ -8,6 +8,10 @@ on:
         description: 'Build files only, without changing GitHub releases (also allows rebuilding a published version)'
         type: boolean
         default: false
+      model_smoke:
+        description: 'Recheck large model downloads and generation (always required when creating a release)'
+        type: boolean
+        default: true
 permissions:
   contents: read
 jobs:
@@ -73,18 +77,21 @@ jobs:
       - name: Check packaged server and real native window (Windows)
         if: runner.os == 'Windows'
         run: python scripts/check_windows_distribution.py
-      - name: Prepare a clean background-music runtime
-        run: python setup_engine.py
-      - name: Prepare the offline translation runtime
-        run: python setup_translation.py
-      - name: Generate music from Korean description
-        run: python scripts/smoke_models.py
       - name: Upload desktop files and check reports
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: desktop-${{ matrix.platform }}
           path: artifacts/*
           if-no-files-found: error
+      - name: Prepare a clean background-music runtime
+        if: github.event_name != 'workflow_dispatch' || !inputs.build_only || inputs.model_smoke
+        run: python setup_engine.py
+      - name: Prepare the offline translation runtime
+        if: github.event_name != 'workflow_dispatch' || !inputs.build_only || inputs.model_smoke
+        run: python setup_translation.py
+      - name: Generate music from Korean description
+        if: github.event_name != 'workflow_dispatch' || !inputs.build_only || inputs.model_smoke
+        run: python scripts/smoke_models.py
       - name: Upload failure diagnostics
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
