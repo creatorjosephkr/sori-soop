@@ -9,10 +9,10 @@
 
 # 소리숲 · Local Music Studio
 
-## 주요기능: 배경음악 만들기, 가사  있는 노래 만들기, 효과음 만들기
-
-<img width="3424" height="2384" alt="image" src="https://github.com/user-attachments/assets/589d554e-5b4e-4a73-9f38-d3c719100d93" />
-
+<p align="center">
+   주요기능: 배경음악 만들기, 가사  있는 노래 만들기, 효과음 만들기
+   <img width="3424" height="2384" alt="image" src="https://github.com/user-attachments/assets/589d554e-5b4e-4a73-9f38-d3c719100d93" />
+</p>
 
 # 다운로드 및 실행
 
