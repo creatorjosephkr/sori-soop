@@ -4,7 +4,7 @@ import tempfile
 import threading
 from unittest.mock import patch
 import engine
-from song_lyrics import check_lyric_tokens,check_audio_codes
+from song_lyrics import check_lyric_tokens,check_audio_codes,check_formatted_lyric_tokens
 
 class SongLyricsTests(unittest.TestCase):
     def test_all_sections_and_descriptions_remain_in_lyrics_even_with_legacy_setting(self):
@@ -31,3 +31,10 @@ class SongLyricsTests(unittest.TestCase):
         self.assertEqual(check_lyric_tokens(lambda *a,**k:{'input_ids':[1]*2048},'가사','ko'),2048)
         with self.assertRaisesRegex(ValueError,'끝까지'):check_audio_codes('<|audio_code_1|>'*100,100)
         self.assertEqual(check_audio_codes('<|audio_code_1|>'*500,100),500)
+
+    def test_actual_encoder_lyric_input_cannot_be_silently_cut(self):
+        def tokenizer(text,**kwargs):
+            self.assertFalse(kwargs['truncation'])
+            return {'input_ids':[0]*2049}
+        with self.assertRaisesRegex(ValueError,'2,048'):
+            check_formatted_lyric_tokens(tokenizer,'# Languages\nko\n# Lyric\nlast verse')

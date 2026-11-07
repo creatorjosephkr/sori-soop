@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from app_paths import ENGINE_ROOT
 from song_duration import automatic,plan_options,planned_seconds
-from song_lyrics import check_lyric_tokens,check_audio_codes,check_caption_tokens
+from song_lyrics import check_lyric_tokens,check_audio_codes,check_caption_tokens,check_formatted_lyric_tokens
 REPO = ENGINE_ROOT / 'ace-step'
 sys.path.insert(0, str(REPO))
 from audio_processing import write_wav
@@ -109,9 +109,9 @@ if a.phase!='render':
     metadata=plan.get('metadata') or {}
     duration=planned_seconds(settings,metadata,plan['audio_codes'])
     validate_planned_caption(metadata,duration)
-    check_audio_codes(plan['audio_codes'],duration)
+    audio_code_count=check_audio_codes(plan['audio_codes'],duration)
     if automatic(settings):stage(f'가사에 맞춰 정한 노래 길이: {duration}초')
-    plan_path.write_text(json.dumps({'metadata':metadata,'audioCodes':plan['audio_codes'],'plannedSeconds':duration,'durationMode':settings.get('durationMode','manual')},ensure_ascii=False), encoding='utf-8')
+    plan_path.write_text(json.dumps({'metadata':metadata,'audioCodes':plan['audio_codes'],'plannedSeconds':duration,'durationMode':settings.get('durationMode','manual'),'lyricTokens':token_count,'lyricLines':len([line for line in lyrics.splitlines() if line.strip()]),'audioCodeCount':audio_code_count,'expectedAudioCodeCount':round(duration*5)},ensure_ascii=False), encoding='utf-8')
     if a.phase=='plan':
         stage('곡 구성 완료 · 분석 프로세스의 메모리를 반환합니다')
         raise SystemExit(0)
@@ -134,6 +134,12 @@ class LocalSongHandler(AceStepHandler):
             def __call__(self,text,*token_args,**token_kwargs):
                 if token_kwargs.get('max_length')==256:
                     validate_caption(original,text)
+                if token_kwargs.get('max_length')==2048:
+                    try:count=check_formatted_lyric_tokens(original,text)
+                    except ValueError as error:
+                        input_check_path.write_text(json.dumps({'ok':False,'error':str(error)},ensure_ascii=False),encoding='utf-8')
+                        raise
+                    print(f'실제 엔진 입력 가사 확인: {count}/2048 tokens (잘림 없음)',flush=True)
                 return original(text,*token_args,**token_kwargs)
         self.text_tokenizer=CheckedTokenizer()
         try:return super()._prepare_text_conditioning_inputs(*args,**kwargs)

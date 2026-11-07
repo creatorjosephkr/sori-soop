@@ -87,7 +87,7 @@
             :'배경음악에서는 보컬 음색과 창법을 제외한 연주용 표현을 입력합니다.';
     }
     function updateStatus(message='',isError=false){
-        const max=currentMode==='song'?512:2000;
+        const max=2000;
         status.textContent=message||`음악 설명 ${input.value.length} / ${max}자 · 직접 쓴 설명도 유지됩니다.`;
         status.classList.toggle('preset-error',input.value.length>max||isError);
     }
@@ -95,12 +95,12 @@
         const base=appliedBlock&&input.value.includes(appliedBlock)?input.value.replace(appliedBlock,''):input.value;
         const parts=phrases();
         const block=parts.length?(base.length?'\n\n':'')+'Style: '+parts.join('; ')+'.':'';
-        const value=base+block,max=currentMode==='song'?512:2000;
+        const value=base+block,max=2000;
         if(value.length>max&&!allowOverLimit){
             updateStatus(`설명이 ${max}자를 넘게 됩니다. 직접 입력한 설명을 줄인 뒤 다시 선택해 주세요.`,true);
             return false;
         }
-        input.value=value;appliedBlock=block;refreshFields();updateStatus();return true;
+        input.value=value;appliedBlock=block;refreshFields();updateStatus();input.dispatchEvent(new Event('input',{bubbles:true}));return true;
     }
     input.addEventListener('input',()=>{
         if(appliedBlock&&!input.value.includes(appliedBlock)){

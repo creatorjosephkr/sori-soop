@@ -3,6 +3,10 @@ import re
 
 def check_lyric_tokens(tokenizer, lyrics, language):
     formatted=f'# Languages\n{language}\n\n# Lyric\n{lyrics}<|endoftext|>'
+    return check_formatted_lyric_tokens(tokenizer,formatted)
+
+
+def check_formatted_lyric_tokens(tokenizer, formatted):
     count=len(tokenizer(formatted,truncation=False)['input_ids'])
     if count>2048:raise ValueError(f'가사가 엔진 한도(2,048토큰)를 초과했습니다: {count:,}토큰. 뒷부분이 누락되지 않도록 가사를 나누거나 줄여 주세요.')
     return count
