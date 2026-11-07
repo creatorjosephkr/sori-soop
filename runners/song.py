@@ -31,6 +31,7 @@ p.add_argument('--progress',required=True)
 a=p.parse_args()
 job=json.loads(Path(a.request).read_text(encoding='utf-8'))
 caption=job.get('generationPrompt',job['prompt'])
+negative_prompt=(job.get('generationNegativePrompt') or job.get('negativePrompt') or '').strip() or 'NO USER INPUT'
 lyrics=job['lyrics']
 tempo_caption=job['prompt']
 requested_bpm=explicit_bpm(tempo_caption)
@@ -112,8 +113,8 @@ if a.phase!='render':
     try:
         plan=planner.generate_with_stop_condition(caption=caption,lyrics=lyrics,
             infer_type='llm_dit',**plan_options(settings,tempo_caption,job['language']),use_cot_caption=False,
-            use_cot_language=True,use_cot_metas=True,cfg_scale=1.0,
-            batch_size=1,seeds=[job['seed']])
+            use_cot_language=True,use_cot_metas=True,temperature=0.85,cfg_scale=2.0,top_p=0.9,
+            negative_prompt=negative_prompt,batch_size=1,seeds=[job['seed']])
         if not plan.get('success') or not plan.get('audio_codes'):
             raise RuntimeError(plan.get('error') or '곡 구성을 생성하지 못했습니다.')
     finally:
@@ -194,8 +195,8 @@ stage('가사와 음악 설명으로 노래를 생성하고 있습니다')
 params=GenerationParams(caption=caption,lyrics=lyrics,instrumental=False,
     vocal_language=job['language'] if job['language']!='unknown' else metadata.get('language','unknown'),duration=duration,seed=job['seed'],
     audio_codes=plan['audio_codes'],bpm=metadata.get('bpm'),keyscale=metadata.get('keyscale',''),
-    timesignature=str(metadata.get('timesignature','')),
-    inference_steps=8,thinking=False,use_cot_metas=False,use_cot_caption=False,
+    timesignature=str(metadata.get('timesignature','')),lm_negative_prompt=negative_prompt,
+    inference_steps=8,shift=3.0,thinking=False,use_cot_metas=False,use_cot_caption=False,
     use_cot_language=False,enable_normalization=False)
 config=GenerationConfig(batch_size=1,use_random_seed=False,seeds=[job['seed']],audio_format='wav')
 output=Path(a.out)
@@ -208,7 +209,7 @@ audio=first['tensor'].detach().float().cpu().numpy().T
 rate=first['sample_rate']
 if not np.isfinite(audio).all() or not np.any(audio):
     raise RuntimeError('유효한 음악 신호가 생성되지 않았습니다.')
-write_wav(output,audio,rate,settings.get('peakDb',-6),channels_first=False)
+write_wav(output,audio,rate,settings.get('peakDb',-8),channels_first=False)
 if sys.platform == 'win32':
     import psutil
     peak = psutil.Process().memory_info().peak_wset

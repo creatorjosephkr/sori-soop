@@ -1,7 +1,12 @@
 /* Keep first-run preparation in its own dialog; downloads continue when closed. */
 (()=>{
     const panel=document.getElementById('model-setup'),message=document.getElementById('setup-status');
-    const opener=document.getElementById('open-setup'),labels={bgm:'배경음악',translation:'한국어 번역',song:'노래','song-quality':'품질 우선 1.7B 모델'};
+    const opener=document.getElementById('open-setup'),labels={bgm:'배경음악',translation:'한국어 번역',song:'노래','song-quality':'품질 우선 1.7B 모델','bgm-medium':'고품질 배경음악 Medium 모델',sfx:'효과음 Small-SFX 모델'};
+    const optionalIntros={
+        'song-quality':'품질 우선 1.7B 곡 구성 모델을 추가로 내려받습니다. 다운로드 약 3.7GB, 여유 저장 공간 5GB 이상이 필요합니다. RAM 16GB 이상을 권장하며 CPU에서는 생성이 더 오래 걸릴 수 있습니다. 준비가 끝나면 노래 품질에서 품질 우선을 선택해 사용하세요. 기존 가벼운 모델과 생성 결과는 유지됩니다.',
+        'bgm-medium':'고품질 배경음악(Stable Audio 3 Medium) 모델을 추가로 내려받습니다. 최대 380초 길이의 고품질 배경음악을 만들 수 있으며, 여유 저장 공간 7GB 이상이 필요합니다. 기존 가벼운 모델과 생성 결과는 유지됩니다.',
+        sfx:'효과음 전용(Stable Audio 3 Small-SFX) 모델을 추가로 내려받습니다. 여유 저장 공간 3GB 이상이 필요하며, 준비가 끝나면 효과음 만들기 탭에서 다양한 효과음과 환경음을 생성할 수 있습니다.'
+    };
     const baseIntroduction=document.getElementById('setup-introduction').textContent;
     let retryComponent='all',currentStatus=null;
     let running=false,autoAttempted=false,timer=null,busy=false,pendingOpen=false,previousFocus=null,initial=true;
@@ -21,11 +26,11 @@
         try{
             let status=await api('/api/setup');
             const complete=Object.values(status.ready).every(Boolean);
-            const qualityMode=status.component==='song-quality';
-            panel.classList.toggle('quality-preparation',qualityMode);
-            retryComponent=qualityMode?'song-quality':'all';
-            document.getElementById('setup-title').textContent=qualityMode?'품질 모델 준비':'처음 실행 준비';
-            document.getElementById('setup-introduction').textContent=qualityMode?'품질 우선 1.7B 곡 구성 모델을 추가로 내려받습니다. 다운로드 약 3.7GB, 여유 저장 공간 5GB 이상이 필요합니다. RAM 16GB 이상을 권장하며 CPU에서는 생성이 더 오래 걸릴 수 있습니다. 준비가 끝나면 노래 품질에서 품질 우선을 선택해 사용하세요. 기존 가벼운 모델과 생성 결과는 유지됩니다.':baseIntroduction;
+            const optionalMode=Boolean(optionalIntros[status.component]);
+            panel.classList.toggle('quality-preparation',optionalMode);
+            retryComponent=optionalMode?status.component:'all';
+            document.getElementById('setup-title').textContent=optionalMode?labels[status.component]+' 준비':'처음 실행 준비';
+            document.getElementById('setup-introduction').textContent=optionalMode?optionalIntros[status.component]:baseIntroduction;
             if(initial){initial=false;if(!complete&&status.autoSetupEnabled!==false)show();}
             if(pendingOpen)show();
             if(status.autoSetupEnabled!==false&&!complete&&!autoAttempted&&!status.active&&status.state!=='failed'&&!activeJob){
@@ -53,14 +58,14 @@
             const location=status.storage;
             document.getElementById('setup-storage').textContent=location?`모델·실행 환경 저장 위치: ${location.root}${Number.isFinite(location.freeBytes)?` · 여유 공간 ${(location.freeBytes/1024**3).toFixed(1)}GB`:''}`:'';
             for(const item of panel.querySelectorAll('[data-step]')){
-                const kind=item.dataset.step,ready=kind==='song-quality'?status.optionalReady?.[kind]:status.ready[kind],current=status.active&&status.component===kind;
-                item.hidden=qualityMode?kind!=='song-quality':kind==='song-quality';
+                const kind=item.dataset.step,isOpt=Boolean(optionalIntros[kind]),ready=isOpt?status.optionalReady?.[kind]:status.ready[kind],current=status.active&&status.component===kind;
+                item.hidden=optionalMode?kind!==status.component:isOpt;
                 item.textContent=labels[kind]+(ready?' · 준비 완료':current?' · 준비 중':' · 대기');
                 item.classList.toggle('is-current',current);item.classList.toggle('is-ready',ready);
                 if(current)item.setAttribute('aria-current','step');else item.removeAttribute('aria-current');
             }
             const retry=document.getElementById('setup-retry');
-            retry.textContent=qualityMode?'품질 모델 준비 다시 시도':'자동 준비 다시 시작';retry.hidden=status.state!=='failed';retry.disabled=status.active||activeJob;
+            retry.textContent=optionalMode?'모델 준비 다시 시도':'자동 준비 다시 시작';retry.hidden=status.state!=='failed';retry.disabled=status.active||activeJob;
             message.textContent=status.active?`자동 준비 ${status.step||1}/${status.total||1} · ${labels[status.component]} 실행 환경과 모델을 준비하고 있습니다. 인터넷 속도에 따라 수 분 이상 걸릴 수 있습니다.`:status.error||(complete?'준비를 마쳤습니다. 이제 음악을 만들어 보세요.':'첫 실행 준비를 기다리고 있습니다.');
             opener.textContent=status.active?'실행 준비 중…':complete?'실행 준비 완료':status.state==='failed'?'실행 준비 확인 필요':'실행 준비 상태';
             document.getElementById('setup-done').textContent=status.active?'닫고 계속 준비':complete?'음악 만들기 시작':'닫기';
@@ -81,6 +86,6 @@
         finally{busy=false;update();}
     });
     document.getElementById('setup-log-bottom').onclick=()=>{const log=document.getElementById('setup-log');log.scrollTop=log.scrollHeight;};
-    window.StudioSetup={get active(){return running;},get status(){return currentStatus;},open(){show();update();},async prepareQuality(){show();currentStatus=await api('/api/setup',{component:'song-quality'});running=true;render();await update();}};
+    window.StudioSetup={get active(){return running;},get status(){return currentStatus;},open(){show();update();},async prepareComponent(component){show();currentStatus=await api('/api/setup',{component});running=true;render();await update();},async prepareQuality(){return this.prepareComponent('song-quality');}};
     setTimeout(update,700);
 })();

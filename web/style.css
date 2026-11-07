@@ -150,3 +150,29 @@ aside>.brand>.app-version{display:inline-block;font-size:12px;font-weight:500;le
 .quality-preparation .setup-steps{grid-template-columns:1fr}
 
 .model-install-notice{margin:12px 0;padding:16px;border:1px solid #d5bf88;border-radius:10px;background:#fcf8ec;color:#5e512e}.model-install-notice[hidden]{display:none}.model-install-notice>strong{display:block;float:none;color:inherit;font-size:16px;line-height:1.65}.model-install-notice>p{color:inherit;margin:8px 0 12px;font-size:15px;line-height:1.7}.model-install-notice>button{width:100%;min-height:48px;padding:10px 12px;border:1px solid #567445;border-radius:8px;background:#567445;color:white;font-size:16px;font-weight:600}.model-install-notice>button:disabled{opacity:.55;cursor:default}.model-install-notice.is-ready{background:#eff5eb;border-color:#b6c9a7;color:#405d34}.model-install-notice.is-ready>p{margin-bottom:0}.model-install-notice.is-installing{background:#edf5f3;border-color:#b6d5ce;color:#244b43}.model-install-notice.is-error{border-color:#ceab91;background:#fcf1e8;color:#805332}
+
+#lyrics{min-height:225px}
+.prompt-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0 0}
+.prompt-footer .prompt-character-count{margin:0}
+.prompt-help-button{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;min-width:36px;padding:0;border:1px solid #cdd9c3;border-radius:50%;background:#fff;color:#4f6841}
+.prompt-help-button:hover{background:#edf4e6;border-color:#728d60}
+.prompt-help-button .ui-icon{width:20px;height:20px}
+.compact-help-dialog{width:min(520px,calc(100% - 32px));padding:24px}
+.compact-help-dialog .sponsor-heading h2,.lyric-guide-dialog .sponsor-heading h2{margin:0;font-size:22px}
+.compact-help-dialog #prompt-language-help{margin:16px 0 10px}
+.compact-help-dialog #prompt-limit-help{margin:0 0 20px}
+.lyric-guide-row{margin:10px 0 0}
+.lyric-guide-button{display:inline-flex;align-items:center;gap:8px;min-height:42px;padding:8px 14px;border:1px solid #cbd8c0;border-radius:8px;background:#f6f9f1;color:#3f5b33;font-size:15px;font-weight:600}
+.lyric-guide-button:hover{background:#eaf2e1;border-color:#728d60}
+.lyric-guide-button .ui-icon{width:19px;height:19px}
+.lyric-guide-dialog{width:min(680px,calc(100% - 32px));padding:26px}
+.lyric-guide-dialog>p{margin:14px 0 18px}
+.lyric-guide-dialog .privacy-sections{margin-bottom:22px}
+.lyric-guide-dialog code{padding:2px 6px;border-radius:5px;background:#e4ede0;color:#2c4724;font-size:.92em}
+.results-notice{margin:0 0 14px;padding:12px 14px;border:1px solid #cfe0c5;border-radius:8px;background:#f2f7ed;color:#3f5c34;font-size:15px;line-height:1.6}
+.results-notice:empty{display:none}
+.inline-setting-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:20px 0 10px}
+.inline-setting-row>label{margin:0}
+.sidebar-tip>.save+.save{margin-top:10px}
+.negative-prompt{min-height:86px;font-size:15px;line-height:1.65}
+body:has(.compact-help-dialog[open]),body:has(.lyric-guide-dialog[open]){overflow:hidden}

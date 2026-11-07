@@ -28,6 +28,8 @@ class TextTranslationTests(unittest.TestCase):
         settings={'mode':'bgm','model':'small-music','backend':'cpu','seconds':10,'policy':'manual'}
         with patch.object(translation,'ready',return_value=False):
             with self.assertRaisesRegex(ValueError,'번역 모델'):engine.start(settings,'차분한 음악',8)
+            with self.assertRaisesRegex(ValueError,'번역 모델'):engine.start(settings,'Calm music',8,negative_prompt='잡음')
+        with self.assertRaisesRegex(ValueError,'네거티브 프롬프트'):engine.start(settings,'Calm music',8,negative_prompt='x'*1001)
 
 class TranslationJobTests(unittest.TestCase):
     def setUp(self):

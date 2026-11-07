@@ -32,8 +32,10 @@ def open_external(url):
         subprocess.run(['open' if system == 'Darwin' else 'xdg-open', url], check=True, timeout=10)
 
 MODELS = {
-    'small-music': {'name': 'Stable Audio 3 Small-Music', 'maxSeconds': 120, 'vocals': False},
-    'ace-step': {'name': 'ACE-Step 1.5', 'maxSeconds': 600, 'vocals': True},
+    'small-music': {'name': 'Stable Audio 3 Small-Music', 'minSeconds': 10, 'maxSeconds': 120, 'vocals': False, 'mode': 'bgm'},
+    'medium': {'name': 'Stable Audio 3 Medium · 고품질', 'minSeconds': 10, 'maxSeconds': 380, 'vocals': False, 'mode': 'bgm'},
+    'small-sfx': {'name': 'Stable Audio 3 Small-SFX · 효과음', 'minSeconds': 1, 'maxSeconds': 120, 'vocals': False, 'mode': 'sfx'},
+    'ace-step': {'name': 'ACE-Step 1.5', 'minSeconds': 10, 'maxSeconds': 600, 'vocals': True, 'mode': 'song'},
 }
 
 def command(args):
@@ -44,10 +46,13 @@ def command(args):
 
 def diagnose():
     system = platform.system()
+    os_name = system
     total = available = None
     chip = platform.processor() or platform.machine()
     gpu = []
     if system == 'Darwin':
+        mac_ver = platform.mac_ver()[0] or command(['sw_vers', '-productVersion'])
+        os_name = f'macOS {mac_ver}'.strip()
         chip = command(['sysctl', '-n', 'machdep.cpu.brand_string']) or chip
         raw = command(['sysctl', '-n', 'hw.memsize'])
         total = int(raw) if raw.isdigit() else None
@@ -67,6 +72,7 @@ def diagnose():
         except (OSError, KeyError, ValueError):
             pass
     elif system == 'Windows':
+        os_name = f'Windows {platform.release()}'.strip()
         try:
             import ctypes
             class Memory(ctypes.Structure):
@@ -85,7 +91,7 @@ def diagnose():
         except ValueError:
             pass
     apple = system == 'Darwin' and platform.machine() == 'arm64'
-    return {'os': system, 'chip': chip, 'appleSilicon': apple, 'cpuCores': os.cpu_count(),
+    return {'os': os_name, 'chip': chip, 'appleSilicon': apple, 'cpuCores': os.cpu_count(),
             'ramGB': round(total / 1024**3, 1) if total else None,
             'availableGB': round(available / 1024**3, 1) if available is not None else None,
             'availableNote': 'OS가 보고한 가용량의 근사치이며 실제 생성 메모리 한도와 다릅니다.',
@@ -96,9 +102,10 @@ def recommend(info, mode='bgm'):
     free = info.get('availableGB')
     vram = max((g['vramGB'] for g in info.get('gpu', [])), default=0)
     song = mode == 'song'
-    model = 'ace-step' if song else 'small-music'
+    sfx = mode == 'sfx'
+    model = 'ace-step' if song else ('small-sfx' if sfx else 'small-music')
     limited = ram < 12 or (free is not None and free < 4)
-    seconds = 30 if limited or song else 60
+    seconds = 5 if sfx else (30 if limited or song else 60)
     warnings = []
     if song:
         warnings.append('가사를 직접 입력하세요. 짧은 노래부터 시작하고, 발음과 가사 반영 여부를 들어보세요.')
@@ -122,7 +129,7 @@ def read_settings():
 
 def validate(settings):
     settings=dict(settings)
-    if settings.get('policy') not in ('auto', 'fixed', 'manual') or settings.get('mode') not in ('bgm', 'song'):
+    if settings.get('policy') not in ('auto', 'fixed', 'manual') or settings.get('mode') not in ('bgm', 'song', 'sfx'):
         raise ValueError('설정 방식 또는 제작 모드를 확인하세요.')
     duration_mode=settings.get('durationMode','manual')
     if duration_mode not in ('manual','auto') or (duration_mode=='auto' and settings['mode']!='song'):
@@ -135,25 +142,35 @@ def validate(settings):
             raise ValueError('지원하지 않는 모델입니다.')
         if settings['mode'] == 'song' and not MODELS[model]['vocals']:
             raise ValueError('이 모델은 가사 기반 노래를 지원하지 않습니다.')
+        if settings['mode'] != 'song' and MODELS[model].get('mode') != settings['mode']:
+            raise ValueError('제작 모드에 맞는 모델을 선택하세요.')
         seconds = settings.get('seconds')
-        if not auto_length and (type(seconds) is not int or not 10 <= seconds <= MODELS[model]['maxSeconds']):
+        min_sec = MODELS[model].get('minSeconds', 10)
+        if not auto_length and (type(seconds) is not int or not min_sec <= seconds <= MODELS[model]['maxSeconds']):
             raise ValueError('음악 길이가 모델 지원 범위를 벗어났습니다.')
         if settings.get('backend') not in ('cpu', 'apple'):
             raise ValueError('실행 방식을 확인하세요.')
-    if settings['policy'] == 'auto' and 'seconds' in settings:
-        model = 'ace-step' if settings['mode'] == 'song' else 'small-music'
-        seconds = settings['seconds']
-        if not auto_length and (type(seconds) is not int or not 10 <= seconds <= MODELS[model]['maxSeconds']):
-            raise ValueError('음악 길이가 모델 지원 범위를 벗어났습니다.')
+    if settings['policy'] == 'auto':
+        if 'model' in settings:
+            if settings['model'] not in MODELS or MODELS[settings['model']].get('mode') != settings['mode']:
+                raise ValueError('제작 모드에 맞는 모델을 선택하세요.')
+        if 'seconds' in settings:
+            default_model = 'ace-step' if settings['mode'] == 'song' else ('small-sfx' if settings['mode'] == 'sfx' else 'small-music')
+            model = settings.get('model', default_model)
+            seconds = settings['seconds']
+            min_sec = MODELS[model].get('minSeconds', 10)
+            if not auto_length and (type(seconds) is not int or not min_sec <= seconds <= MODELS[model]['maxSeconds']):
+                raise ValueError('음악 길이가 모델 지원 범위를 벗어났습니다.')
     if settings.get('songQuality','light') not in ('light','quality'):raise ValueError('노래 품질 모델을 확인하세요.')
-    validate_peak_db(settings.get('peakDb', -6))
+    validate_peak_db(settings.get('peakDb', -8))
     return {k: settings[k] for k in ('policy', 'mode', 'model', 'seconds', 'backend', 'peakDb', 'durationMode', 'songQuality') if k in settings}
 
 def resolve_generation_settings(settings, info):
     resolved = dict(settings)
     if resolved['policy'] == 'auto':
         rec = recommend(info, resolved['mode'])
-        resolved.update({key: rec[key] for key in ('model', 'backend')})
+        resolved['backend'] = rec['backend']
+        resolved.setdefault('model', rec['model'])
         if not song_duration.automatic(resolved):resolved.setdefault('seconds', rec['seconds'])
     return resolved
 
@@ -190,7 +207,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == '/api/status':
             info = diagnose()
             settings = read_settings()
-            return self.reply({'system': info, 'settings': settings, 'translationReady': translation.ready(), 'recommendation': recommend(info, settings.get('mode', 'bgm')), 'models': MODELS, 'engineReady': engine.ready('apple' if info['appleSilicon'] else 'cpu'), 'engines': {b: engine.ready(b) for b in ('apple', 'cpu')}, 'songEngines': {b: engine.ready(b, 'ace-step') for b in ('apple', 'cpu')}, 'songPlanners':{q:engine.planner_ready(q) for q in ('light','quality')}})
+            return self.reply({'system': info, 'settings': settings, 'translationReady': translation.ready(), 'recommendation': recommend(info, settings.get('mode', 'bgm')), 'models': MODELS, 'engineReady': engine.ready('apple' if info['appleSilicon'] else 'cpu'), 'engines': {b: engine.ready(b) for b in ('apple', 'cpu')}, 'sa3Models': {b: {m: engine.sa3_model_ready(b, m) for m in ('small-music', 'medium', 'small-sfx')} for b in ('apple', 'cpu')}, 'songEngines': {b: engine.ready(b, 'ace-step') for b in ('apple', 'cpu')}, 'songPlanners':{q:engine.planner_ready(q) for q in ('light','quality')}})
         paths = {'/': 'index.html', '/style.css': 'style.css', '/app.js': 'app.js', '/presets.js': 'presets.js', '/player.js': 'player.js', '/icons.js': 'icons.js', '/setup.js': 'setup.js', '/updates.js': 'updates.js', '/fonts/NotoSansKR-Variable.ttf': 'fonts/NotoSansKR-Variable.ttf', '/icons/sorisup.svg': 'icons/sorisup.svg', '/icons/chatgpt.svg': 'icons/chatgpt.svg', '/icons/claude.ico': 'icons/claude.ico', '/icons/gemini.png': 'icons/gemini.png'}
         paths.update({'/spon/'+name: '../spon/'+name for name in ('spon.svg', 'kakaobank.png', 'paypal.png')})
         if self.path not in paths:
@@ -311,7 +328,7 @@ class Handler(BaseHTTPRequestHandler):
                 settings = validate(body['settings'])
                 info = diagnose()
                 settings = resolve_generation_settings(settings, info)
-                return self.reply(engine.start(settings, body.get('prompt'), info['availableGB'], body.get('lyrics', ''), body.get('language', 'ko'), body.get('title', '')), 202)
+                return self.reply(engine.start(settings, body.get('prompt'), info['availableGB'], body.get('lyrics', ''), body.get('language', 'ko'), body.get('title', ''), body.get('negativePrompt', '')), 202)
             except (ValueError, TypeError, KeyError) as e:
                 return self.reply({'error': str(e)}, 400)
         if self.path != '/api/settings':

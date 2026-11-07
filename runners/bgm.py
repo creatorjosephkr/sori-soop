@@ -11,7 +11,7 @@ from audio_processing import write_wav, validate_peak_db
 
 parser=argparse.ArgumentParser(add_help=False)
 parser.add_argument('--script',required=True)
-parser.add_argument('--peak-db',type=float,default=-6)
+parser.add_argument('--peak-db',type=float,default=-8)
 args,remaining=parser.parse_known_args()
 validate_peak_db(args.peak_db)
 script=Path(args.script)

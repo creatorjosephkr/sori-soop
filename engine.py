@@ -34,6 +34,10 @@ def song_paths():
 
 def planner_ready(quality='light'):return song_runtime.planner_ready(ENGINE_ROOT/'ace-step',quality)
 
+def sa3_model_ready(backend,model='small-music'):
+    import installer
+    return ready(backend,'small-music') and installer.bgm_weights_ready(backend,model)
+
 def ready(backend, model='small-music'):
     if model == 'ace-step':
         folder, python, script = song_paths()
@@ -66,18 +70,29 @@ def history():
             continue
     return sorted(result,key=lambda j:j['createdAt'],reverse=True)
 
-def start(settings, prompt, available=None, lyrics='', language='ko', title=''):
+def start(settings, prompt, available=None, lyrics='', language='ko', title='', negative_prompt=''):
     global ACTIVE, CURRENT
-    settings={**settings, 'peakDb':validate_peak_db(settings.get('peakDb', -6))}
+    settings={**settings, 'peakDb':validate_peak_db(settings.get('peakDb', -8))}
     if not isinstance(prompt,str) or not 1 <= len(prompt.strip()) <= 2000:
         raise ValueError('음악 설명을 1~2000자로 입력하세요.')
     if not isinstance(title,str) or len(title.strip())>100:
         raise ValueError('제목은 100자 이내로 입력하세요.')
-    if translation.has_korean(prompt) and not translation.ready():
+    if not isinstance(negative_prompt,str) or len(negative_prompt.strip())>1000:
+        raise ValueError('네거티브 프롬프트는 1000자 이내로 입력하세요.')
+    if (translation.has_korean(prompt) or translation.has_korean(negative_prompt)) and not translation.ready():
         raise ValueError('로컬 한영 번역 모델이 설치되지 않았습니다. setup_translation.py로 설치하거나 음악 설명을 영어로 입력하세요.')
-    song = settings['mode'] == 'song'
-    if settings['model'] != ('ace-step' if song else 'small-music'):
+    mode = settings['mode']
+    song = mode == 'song'
+    if song and settings['model'] != 'ace-step':
         raise ValueError('배경음악에는 Small-Music, 보컬 노래에는 ACE-Step을 선택하세요.')
+    if mode == 'bgm' and settings['model'] not in ('small-music', 'medium'):
+        raise ValueError('배경음악에는 Small-Music 또는 Medium 모델을 선택하세요.')
+    if mode == 'sfx' and settings['model'] != 'small-sfx':
+        raise ValueError('효과음에는 Small-SFX 모델을 선택하세요.')
+    if settings['model'] == 'medium' and not sa3_model_ready(settings['backend'], 'medium'):
+        raise ValueError('고품질 배경음악(Medium) 모델을 먼저 준비해 주세요. 음악 모델 설정 아래의 설치 버튼을 누르세요.')
+    if settings['model'] == 'small-sfx' and not sa3_model_ready(settings['backend'], 'small-sfx'):
+        raise ValueError('효과음(Small-SFX) 모델을 먼저 준비해 주세요. 음악 모델 설정 아래의 설치 버튼을 누르세요.')
     if song:
         if settings.get('songQuality','light') not in song_runtime.PLANNERS:raise ValueError('노래 품질 모델을 확인하세요.')
         if settings.get('songQuality')=='quality':
@@ -104,6 +119,8 @@ def start(settings, prompt, available=None, lyrics='', language='ko', title=''):
         ident=uuid.uuid4().hex
         job={'id':ident,'createdAt':time.time(),'status':'queued','title':title.strip(),'prompt':prompt.strip(),
              'settings':dict(settings),'runtimeRevision':(ROOT/('song-engine-version.txt' if song else 'engines-version.txt')).read_text(encoding='utf-8').strip(),'seed':int.from_bytes(os.urandom(4),'big') % (2**31), 'elapsedSeconds':None}
+        if negative_prompt.strip():
+            job['negativePrompt']=negative_prompt.strip()
         if song:
             job.update(lyrics=lyrics.strip(), language=language, plannerRevision=(ROOT/'song-planner-version.txt').read_text(encoding='utf-8').strip())
         save(job); ACTIVE=ident; CURRENT=job
@@ -114,7 +131,10 @@ def translate_job(job):
     """Finish and release the offline translator before loading a music model."""
     global PROCESS
     source=job['prompt']
-    if not translation.has_korean(source):
+    neg_source=job.get('negativePrompt','')
+    has_ko_prompt=translation.has_korean(source)
+    has_ko_neg=translation.has_korean(neg_source)
+    if not has_ko_prompt and not has_ko_neg:
         if job['settings']['mode']!='song' and len(source)>2000:raise ValueError('음악 설명이 너무 깁니다. 설명을 줄여 주세요.')
         return True
     python, _ = translation.runtime_paths()
@@ -140,12 +160,18 @@ def translate_job(job):
     if code:
         raise ValueError('로컬 한영 번역에 실패했습니다. 설명을 간단히 쓰거나 영어로 입력해 주세요.')
     result=json.loads(output.read_text(encoding='utf-8'))
-    text=result.get('text')
-    if not isinstance(text,str) or not text.strip() or translation.has_korean(text):
-        raise ValueError('영어 음악 설명을 만들지 못했습니다. 다시 시도하거나 영어로 입력해 주세요.')
-    if job['settings']['mode']!='song' and len(text)>2000:
-        raise ValueError('영어로 변환한 음악 설명이 2000자를 넘었습니다. 음악 설명을 줄여 주세요.')
-    job['generationPrompt']=text
+    if has_ko_prompt:
+        text=result.get('text')
+        if not isinstance(text,str) or not text.strip() or translation.has_korean(text):
+            raise ValueError('영어 음악 설명을 만들지 못했습니다. 다시 시도하거나 영어로 입력해 주세요.')
+        if job['settings']['mode']!='song' and len(text)>2000:
+            raise ValueError('영어로 변환한 음악 설명이 2000자를 넘었습니다. 음악 설명을 줄여 주세요.')
+        job['generationPrompt']=text
+    if has_ko_neg:
+        neg_text=result.get('negativeText')
+        if not isinstance(neg_text,str) or not neg_text.strip() or translation.has_korean(neg_text):
+            raise ValueError('영어 네거티브 프롬프트를 만들지 못했습니다. 다시 시도하거나 영어로 입력해 주세요.')
+        job['generationNegativePrompt']=neg_text
     job['translation']={'model':result['model'],'revision':result['revision'],'sourceLanguage':'ko','targetLanguage':'en'}
     job['phase']='음악 모델을 준비하고 있습니다'
     progress.unlink(missing_ok=True)
@@ -190,11 +216,16 @@ def run(job):
                 job['status']='cancelled'; return
             job['status']='running';save(job)
             stream=log.open('w')
+            model_id = job['settings']['model']
+            dit = {'small-music': 'sm-music', 'medium': 'medium', 'small-sfx': 'sm-sfx'}.get(model_id, 'sm-music')
+            decoder = 'same-l' if model_id == 'medium' and job['settings']['backend'] == 'apple' else 'same-s'
+            neg_prompt = (job.get('generationNegativePrompt') or job.get('negativePrompt') or '').strip()
+            neg_args = ['--negative-prompt', neg_prompt, '--cfg', '2.0'] if neg_prompt else []
             args = ([str(python), '-u', str(script), '--request', str(DATA/'jobs'/(job['id']+'.json')),
                      '--out', str(out), '--progress', str(DATA/'jobs'/(job['id']+'.progress.json'))] if song else
-                    [str(python),'-u',str(script),'--dit','sm-music','--decoder','same-s',
+                    [str(python),'-u',str(script),'--dit',dit,'--decoder',decoder,
                      '--prompt',job.get('generationPrompt',job['prompt']),'--seconds',str(job['settings']['seconds']),
-                     '--seed',str(job['seed']),'--out',str(out)])
+                     '--seed',str(job['seed']),'--out',str(out),*neg_args])
             if not song and script.name in ('sa3_mlx.py', 'sa3_tflite.py'):
                 args=[str(python),'-u',str(ROOT/'runners'/'bgm.py'),'--script',str(script),'--peak-db',str(job['settings']['peakDb']),*args[3:]]
         with stream:
@@ -227,7 +258,7 @@ def run(job):
                     if not 10<=duration<=600:raise ValueError('자동으로 생성한 노래 길이가 지원 범위를 벗어났습니다.')
                 elif abs(duration-job['settings']['seconds'])>1:raise ValueError('결과 길이가 요청과 다릅니다.')
             job['outputPeakDb']=wav_peak_db(out)
-            if job['outputPeakDb'] is not None and job['outputPeakDb'] > job['settings'].get('peakDb', -6) + 0.01:
+            if job['outputPeakDb'] is not None and job['outputPeakDb'] > job['settings'].get('peakDb', -8) + 0.01:
                 raise ValueError('출력 최대 게인 검증에 실패했습니다.')
             job['status']='completed'; job['audioUrl']='/audio/'+job['id']+'.wav'
             job['durationSeconds']=round(duration,2)

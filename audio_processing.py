@@ -4,7 +4,7 @@ import wave
 from array import array
 import sys
 
-DEFAULT_PEAK_DB = -6
+DEFAULT_PEAK_DB = -8
 
 def validate_peak_db(value):
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not -24 <= value <= 0:

@@ -23,6 +23,18 @@ class SettingsTests(unittest.TestCase):
         s = {'policy': 'manual', 'mode': 'song', 'model': 'ace-step', 'backend': 'cpu', 'seconds': 90}
         self.assertEqual(validate(s), s)
 
+    def test_medium_bgm_and_sfx_mode_validation(self):
+        medium = {'policy': 'manual', 'mode': 'bgm', 'model': 'medium', 'backend': 'apple', 'seconds': 300}
+        self.assertEqual(validate(medium)['model'], 'medium')
+        with self.assertRaises(ValueError):
+            validate({**medium, 'seconds': 381})
+        sfx = {'policy': 'manual', 'mode': 'sfx', 'model': 'small-sfx', 'backend': 'cpu', 'seconds': 3}
+        self.assertEqual(validate(sfx)['mode'], 'sfx')
+        with self.assertRaises(ValueError):
+            validate({'policy': 'manual', 'mode': 'sfx', 'model': 'small-music', 'backend': 'cpu', 'seconds': 5})
+        self.assertEqual(recommend({'ramGB': 16, 'availableGB': 8, 'appleSilicon': True}, 'sfx')['model'], 'small-sfx')
+        self.assertEqual(recommend({'ramGB': 16, 'availableGB': 8, 'appleSilicon': True}, 'sfx')['seconds'], 5)
+
 if __name__ == '__main__':
     unittest.main()
 

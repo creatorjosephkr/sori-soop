@@ -38,3 +38,23 @@ class SongLyricsTests(unittest.TestCase):
             return {'input_ids':[0]*2049}
         with self.assertRaisesRegex(ValueError,'2,048'):
             check_formatted_lyric_tokens(tokenizer,'# Languages\nko\n# Lyric\nlast verse')
+
+    def test_runner_uses_upstream_lm_guidance_and_turbo_shift(self):
+        root=Path(__file__).resolve().parent.parent
+        runner=(root/'runners/song.py').read_text(encoding='utf-8')
+        self.assertIn('temperature=0.85,cfg_scale=2.0,top_p=0.9',runner)
+        self.assertIn('inference_steps=8,shift=3.0',runner)
+
+    def test_lyric_request_prompt_contains_acestep_g2p_and_syllable_rules(self):
+        root=Path(__file__).resolve().parent.parent
+        script=(root/'web/app.js').read_text(encoding='utf-8')
+        for phrase in (
+            "당신은 AI 음악 생성 모델 'ACE-Step' 전용 작사가이자 프롬프트 엔지니어입니다.",
+            "1. **음절 수 엄격 제한 (가사 누락 방지)**",
+            "2. **한국어 발음 최적화 (G2P 표기 적용)**",
+            "display_lyrics(화면 표시용 정자법 가사)와 phonetic_lyrics(ACE-Step 엔진 전달용 발음 가사)를 각각 생성하여 제공",
+            "3. **구조 태그 및 호흡 기호 배치**",
+            "4. **ACE-Step 영문 스타일 프롬프트 세팅**",
+            "### [곡 기획 정보]",
+        ):
+            self.assertIn(phrase,script)

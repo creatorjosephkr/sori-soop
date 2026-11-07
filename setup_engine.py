@@ -6,21 +6,33 @@ import subprocess
 from app_paths import ROOT,ENGINE_ROOT,uv_path,create_venv,background_options
 from runtime_download import install_source
 
-print('1/4 · 배경음악 엔진 파일을 확인하고 내려받습니다.',flush=True)
+bundle=os.environ.get('LOCAL_MUSIC_SA3_BUNDLE','sm-music')
 repo=ENGINE_ROOT/'stable-audio-3'
-install_source('Stability-AI/stable-audio-3',(ROOT/'engines-version.txt').read_text(encoding='utf-8').strip(),repo,subdirs=['optimized/mlx','optimized/tflite'])
 backend='mlx' if platform.system()=='Darwin' and platform.machine()=='arm64' else 'tflite'
 folder=repo/'optimized'/backend
 python=folder/('.venv/Scripts/python.exe' if platform.system()=='Windows' else '.venv/bin/python')
-print('2/4 · 배경음악 Python 실행 환경을 준비합니다.',flush=True)
-create_venv(folder/'.venv')
-requirements=ROOT/'requirements-mlx.lock' if backend=='mlx' else folder/'requirements.txt'
-print('3/4 · 배경음악에 필요한 프로그램을 설치합니다.',flush=True)
-subprocess.run([uv_path(),'pip','install','--python',str(python),'-r',str(requirements)],check=True,**background_options())
-print('4/4 · 배경음악 모델 파일을 다운로드합니다.',flush=True)
-# Download only the small-music generation weights, without loading models into RAM.
-files=(['models/mlx/t5gemma_f16.npz','models/mlx/dit_sm-music_f16.npz','models/mlx/same_s_decoder_f32.npz'] if backend=='mlx'
-       else ['models/tflite/t5gemma/encoder_fp16.tflite','models/tflite/sa3-sm-music/dit_w8a8.tflite','models/tflite/same-s/dec_w8a8.tflite'])
+if bundle=='sm-music' or not python.exists():
+    print('1/4 · 배경음악 엔진 파일을 확인하고 내려받습니다.',flush=True)
+    install_source('Stability-AI/stable-audio-3',(ROOT/'engines-version.txt').read_text(encoding='utf-8').strip(),repo,subdirs=['optimized/mlx','optimized/tflite'])
+    print('2/4 · 배경음악 Python 실행 환경을 준비합니다.',flush=True)
+    create_venv(folder/'.venv')
+    requirements=ROOT/'requirements-mlx.lock' if backend=='mlx' else folder/'requirements.txt'
+    print('3/4 · 배경음악에 필요한 프로그램을 설치합니다.',flush=True)
+    subprocess.run([uv_path(),'pip','install','--python',str(python),'-r',str(requirements)],check=True,**background_options())
+print('4/4 · 모델 파일을 다운로드합니다.',flush=True)
+BUNDLES={
+    'mlx':{
+        'sm-music':['models/mlx/t5gemma_f16.npz','models/mlx/dit_sm-music_f16.npz','models/mlx/same_s_decoder_f32.npz'],
+        'medium':['models/mlx/t5gemma_f16.npz','models/mlx/dit_medium_f16.npz','models/mlx/same_l_decoder_f32.npz'],
+        'sm-sfx':['models/mlx/t5gemma_f16.npz','models/mlx/dit_sm-sfx_f16.npz','models/mlx/same_s_decoder_f32.npz'],
+    },
+    'tflite':{
+        'sm-music':['models/tflite/t5gemma/encoder_fp16.tflite','models/tflite/sa3-sm-music/dit_w8a8.tflite','models/tflite/same-s/dec_w8a8.tflite'],
+        'medium':['models/tflite/t5gemma/encoder_fp16.tflite','models/tflite/sa3-m/dit_w8a8.tflite','models/tflite/same-s/dec_w8a8.tflite'],
+        'sm-sfx':['models/tflite/t5gemma/encoder_fp16.tflite','models/tflite/sa3-sm-sfx/dit_w8a8.tflite','models/tflite/same-s/dec_w8a8.tflite'],
+    },
+}
+files=BUNDLES[backend][bundle]
 env={**os.environ,'HF_HUB_DISABLE_XET':'1','HF_HUB_DOWNLOAD_TIMEOUT':'30','HF_HUB_ETAG_TIMEOUT':'15','PYTHONUNBUFFERED':'1'}
 for attempt in range(1,4):
     result=subprocess.run([str(python),str(ROOT/'model_download.py'),'--folder',str(folder),*files],env=env,**background_options())

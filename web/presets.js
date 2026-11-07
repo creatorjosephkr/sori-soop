@@ -1,7 +1,7 @@
 /* Composable music descriptions; preserve free text and manage only inserted phrases. */
 (()=>{
     const data={
-        genre:{label:'장르 및 음악 스타일',items:[
+        genre:{label:'장르 및 음악 스타일',musicOnly:true,items:[
             ['ballad','감성 발라드','ballad, emotional and expressive singing style, soft and heartfelt vocal tone','emotional instrumental ballad, soft piano, heartfelt melodies'],
             ['pop','신나는 팝/댄스','pop and dance music, energetic and upbeat pop vocals, dynamic rhythm, bright and clean tone','upbeat pop and dance music, dynamic rhythm, bright and clean instrumental sound'],
             ['rnb','힙합/알앤비','hip-hop and R&B, smooth and soulful R&B rhythm, rhythmic and groovy vocal delivery','hip-hop and R&B instrumental, soulful chords, smooth bass and groovy beats'],
@@ -23,7 +23,7 @@
             ['baritone','풍부한 남성 중저음','rich baritone male vocal, rounded low register and gentle resonance'],
             ['neutral','맑고 담백한 중성 음색','clear and neutral vocal character, understated and natural delivery']
         ]},
-        mood:{label:'감정선 및 무드',items:[
+        mood:{label:'감정선 및 무드',musicOnly:true,items:[
             ['sad','애절함/슬픔','sorrowful and tearful singing voice, full of melancholy and deep emotion','sorrowful instrumental mood, melancholy melodies and deep emotion'],
             ['joyful','밝고 신남','joyful and smiling vocal tone, full of happiness and bright energy','joyful instrumental mood, cheerful melodies and bright energy'],
             ['dreamy','몽환적/신비로움','dreamy and ethereal vocal with a soft reverb-like quality, mysterious tone','dreamy and ethereal instrumental textures, spacious reverb and a mysterious mood'],
@@ -32,7 +32,7 @@
             ['hopeful','희망/벅찬 감동','hopeful and uplifting vocals, a growing sense of wonder and inspiration','hopeful uplifting instrumental mood, a growing sense of wonder and inspiration'],
             ['calm','차분함/집중','calm and restrained vocals, peaceful and unhurried emotion','calm and peaceful instrumental mood, restrained melodies suitable for focus']
         ]},
-        tempo:{label:'템포',items:[
+        tempo:{label:'템포',musicOnly:true,items:[
             ['slow','느리고 차분하게','slow and measured singing pace, long and sustained notes','slow and measured instrumental pace, long sustained notes'],
             ['medium','적당하고 편안하게','moderate tempo, relaxed and steady vocal phrasing','moderate instrumental tempo, relaxed and steady rhythm'],
             ['fast','빠르고 경쾌하게','fast and crisp vocal delivery, sharp and rhythmic pacing','fast and lively instrumental tempo, crisp and rhythmic pacing']
@@ -43,6 +43,21 @@
             ['diction','또렷한 가사 전달','clear diction and intelligible lyrics, precise but natural vocal articulation'],
             ['vibrato','은은한 비브라토','subtle natural vibrato on sustained notes, controlled and expressive singing'],
             ['harmony','부드러운 화음/코러스','gentle supporting vocal harmonies, clear lead vocal and restrained backing vocals']
+        ]},
+        sfxCategory:{label:'효과음 종류',sfxOnly:true,items:[
+            ['nature','자연/날씨 환경음','natural weather and outdoor ambience, organic rain, wind and nature soundscape'],
+            ['foley','일상/실내 폴리 효과음','crisp everyday foley sound effect, close-up object interaction and realistic texture'],
+            ['footsteps','발자국/움직임 소리','clear footsteps and movement foley, realistic surface contact sound'],
+            ['ui','UI/알림/버튼음','clean modern UI sound effect, crisp digital notification and button click'],
+            ['impact','타격/충돌/시네마틱 임팩트','cinematic impact and boom sound effect, powerful transient and deep resonance'],
+            ['scifi','SF/사이버/기계음','sci-fi futuristic mechanical and energy sound effect, clean synthetic texture'],
+            ['horror','미스터리/긴장감 효과음','eerie suspense sound effect, unsettling texture and dark tension']
+        ]},
+        sfxSpace:{label:'공간감 및 녹음 질감',sfxOnly:true,items:[
+            ['dry','가깝고 선명하게 (무향/클로즈업)','close-mic dry recording, crisp transient, minimal room reverb'],
+            ['room','자연스러운 실내 공간','natural indoor room acoustics, warm subtle reflections'],
+            ['hall','넓고 울림 있는 공간','spacious reverberant hall and wide stereo ambience'],
+            ['outdoor','탁 트인 야외 공간','open outdoor field recording perspective, natural air']
         ]}
     };
     const input=document.getElementById('prompt');
@@ -66,24 +81,35 @@
         const result=[];
         for(const [key,group] of Object.entries(data)){
             if(group.vocalOnly&&currentMode!=='song')continue;
+            if(group.musicOnly&&currentMode==='sfx')continue;
+            if(group.sfxOnly&&currentMode!=='sfx')continue;
             const item=group.items.find(item=>item[0]===selected[key]);
-            if(item)result.push(currentMode==='song'?item[2]:item[3]);
+            if(item)result.push(currentMode==='song'?item[2]:(item[3]||item[2]));
         }
         if(result.length&&currentMode==='bgm')result.push('instrumental, no vocals');
+        if(result.length&&currentMode==='sfx')result.push('high quality sound effect, no music, no vocals');
         return result;
     }
     function refreshFields(){
         for(const [key,group] of Object.entries(data)){
             const select=document.getElementById('preset-'+key);
             select.value=selected[key];
-            const hidden=group.vocalOnly&&currentMode!=='song';
+            const hidden=(group.vocalOnly&&currentMode!=='song')||(group.musicOnly&&currentMode==='sfx')||(group.sfxOnly&&currentMode!=='sfx');
             select.parentElement.hidden=hidden;select.disabled=hidden;
         }
-        document.querySelectorAll('[data-preset-genre]').forEach(button=>{
-            button.setAttribute('aria-pressed',String(selected.genre===button.dataset.presetGenre));
+        const shortcuts=currentMode==='sfx'?[['nature','자연/날씨'],['foley','일상/폴리'],['scifi','SF/기계음']]:[['lofi','로파이'],['ambient','앰비언트'],['acoustic','어쿠스틱/인디']];
+        const shortcutKey=currentMode==='sfx'?'sfxCategory':'genre';
+        document.querySelectorAll('[data-preset-genre]').forEach((button,index)=>{
+            const [val,label]=shortcuts[index]||shortcuts[0];
+            button.dataset.presetGenre=val;button.textContent=label;
+            button.setAttribute('aria-pressed',String(selected[shortcutKey]===val));
         });
+        const summary=document.querySelector('.prompt-presets>summary');
+        if(summary)summary.textContent=currentMode==='sfx'?'효과음 스타일 프리셋':'음악 스타일 프리셋';
         document.getElementById('preset-mode-help').textContent=currentMode==='song'
             ?'항목별로 하나씩 조합하세요. 템포와 창법은 함께 선택할 수 있습니다.'
+            :currentMode==='sfx'
+            ?'효과음 종류와 공간감을 조합해 설명에 추가할 수 있습니다.'
             :'배경음악에서는 보컬 음색과 창법을 제외한 연주용 표현을 입력합니다.';
     }
     function updateStatus(message='',isError=false){
@@ -109,8 +135,9 @@
         }else updateStatus();
     });
     document.querySelectorAll('[data-preset-genre]').forEach(button=>button.onclick=()=>{
-        const old=selected.genre;selected.genre=old===button.dataset.presetGenre?'':button.dataset.presetGenre;
-        if(!compose()){selected.genre=old;refreshFields();}
+        const key=currentMode==='sfx'?'sfxCategory':'genre';
+        const old=selected[key];selected[key]=old===button.dataset.presetGenre?'':button.dataset.presetGenre;
+        if(!compose()){selected[key]=old;refreshFields();}
     });
     document.getElementById('clear-presets').onclick=()=>{
         Object.keys(selected).forEach(key=>selected[key]='');compose(true);

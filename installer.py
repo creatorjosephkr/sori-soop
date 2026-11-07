@@ -16,16 +16,28 @@ STATE={'active':False,'component':None,'state':'idle','error':None}
 PROCESS=None
 SETUP_REVISION='windows-song-runtime-v3'
 BASE_COMPONENTS=('bgm','translation','song')
-SCRIPTS={'bgm':'setup_engine.py','translation':'setup_translation.py','song':'setup_song.py','song-quality':'setup_song_quality.py'}
+OPTIONAL_COMPONENTS=('song-quality','bgm-medium','sfx')
+SCRIPTS={'bgm':'setup_engine.py','translation':'setup_translation.py','song':'setup_song.py','song-quality':'setup_song_quality.py','bgm-medium':'setup_engine.py','sfx':'setup_engine.py'}
+SA3_FILES={
+    'apple':{
+        'small-music':['models/mlx/t5gemma_f16.npz','models/mlx/dit_sm-music_f16.npz','models/mlx/same_s_decoder_f32.npz'],
+        'medium':['models/mlx/t5gemma_f16.npz','models/mlx/dit_medium_f16.npz','models/mlx/same_l_decoder_f32.npz'],
+        'small-sfx':['models/mlx/t5gemma_f16.npz','models/mlx/dit_sm-sfx_f16.npz','models/mlx/same_s_decoder_f32.npz'],
+    },
+    'cpu':{
+        'small-music':['models/tflite/t5gemma/encoder_fp16.tflite','models/tflite/sa3-sm-music/dit_w8a8.tflite','models/tflite/same-s/dec_w8a8.tflite'],
+        'medium':['models/tflite/t5gemma/encoder_fp16.tflite','models/tflite/sa3-m/dit_w8a8.tflite','models/tflite/same-s/dec_w8a8.tflite'],
+        'small-sfx':['models/tflite/t5gemma/encoder_fp16.tflite','models/tflite/sa3-sm-sfx/dit_w8a8.tflite','models/tflite/same-s/dec_w8a8.tflite'],
+    },
+}
 
 def active():
     with LOCK:return STATE['active']
 
-def bgm_weights_ready(backend):
+def bgm_weights_ready(backend,model='small-music'):
     folder=ENGINE_ROOT/'stable-audio-3'/'optimized'/('mlx' if backend=='apple' else 'tflite')
-    files=(['models/mlx/t5gemma_f16.npz','models/mlx/dit_sm-music_f16.npz','models/mlx/same_s_decoder_f32.npz']
-           if backend=='apple' else ['models/tflite/t5gemma/encoder_fp16.tflite','models/tflite/sa3-sm-music/dit_w8a8.tflite','models/tflite/same-s/dec_w8a8.tflite'])
-    return all((folder/name).is_file() for name in files)
+    files=SA3_FILES.get('apple' if backend=='apple' else 'cpu',{}).get(model)
+    return bool(files) and all((folder/name).is_file() for name in files)
 
 def saved_error():
     try:
@@ -60,7 +72,7 @@ def status():
     if state['state']=='idle' and saved_error():state.update(state='failed',error=saved_error())
     log=log_tail(state.get('component'))
     now=time.time()
-    return {**state,'log':log,'elapsedSeconds':max(0,int(now-state.get('startedAt',now))),'quietSeconds':max(0,int(now-(log['updatedAt'] or state.get('componentStartedAt',now)))),'storage':storage.describe(),'autoSetupEnabled':os.environ.get('LOCAL_MUSIC_AUTO_SETUP')!='0','optionalReady':{'song-quality':engine.planner_ready('quality')},'ready':{'bgm':engine.ready(backend) and bgm_weights_ready(backend),'translation':translation.ready(),'song':engine.ready(backend,'ace-step')}}
+    return {**state,'log':log,'elapsedSeconds':max(0,int(now-state.get('startedAt',now))),'quietSeconds':max(0,int(now-(log['updatedAt'] or state.get('componentStartedAt',now)))),'storage':storage.describe(),'autoSetupEnabled':os.environ.get('LOCAL_MUSIC_AUTO_SETUP')!='0','optionalReady':{'song-quality':engine.planner_ready('quality'),'bgm-medium':bgm_weights_ready(backend,'medium'),'sfx':bgm_weights_ready(backend,'small-sfx')},'ready':{'bgm':engine.ready(backend) and bgm_weights_ready(backend),'translation':translation.ready(),'song':engine.ready(backend,'ace-step')}}
 
 def start(component):
     import engine
@@ -71,6 +83,7 @@ def start(component):
         if current['active'] or engine.ACTIVE:raise ValueError('현재 작업이 끝난 뒤 모델을 준비해 주세요.')
         components=[key for key in BASE_COMPONENTS if not current['ready'][key]] if component in ('all','auto') else [component]
         if component=='song-quality' and not current['ready'].get('song'):raise ValueError('노래 기본 실행 준비를 먼저 완료해 주세요.')
+        if component in ('bgm-medium','sfx') and not current['ready'].get('bgm'):raise ValueError('배경음악 기본 실행 준비를 먼저 완료해 주세요.')
         if not components:return current
         DATA.mkdir(parents=True,exist_ok=True)
         try:
@@ -95,11 +108,12 @@ def run_queue(components):
             import song_runtime
             required=16 if component=='song' and not song_runtime.models_ready(ENGINE_ROOT/'ace-step') else 3
             if component=='song-quality':required=5
+            elif component=='bgm-medium':required=7
             if shutil.disk_usage(ENGINE_ROOT).free<required*1024**3:
-                raise RuntimeError('저장 공간이 부족합니다. 노래는 16GB, 품질 모델은 5GB, 나머지는 3GB 이상의 여유 공간을 확보한 뒤 다시 시도해 주세요.')
+                raise RuntimeError('저장 공간이 부족합니다. 노래는 16GB, 고품질 배경음악은 7GB, 품질 모델은 5GB, 나머지는 3GB 이상의 여유 공간을 확보한 뒤 다시 시도해 주세요.')
             run(component)
             current=status()
-            ready=current.get('optionalReady',{}).get(component) if component=='song-quality' else current['ready'][component]
+            ready=current.get('optionalReady',{}).get(component) if component in OPTIONAL_COMPONENTS else current['ready'][component]
             if not ready:raise RuntimeError('설치 결과를 확인하지 못했습니다. 다시 준비해 주세요.')
         with LOCK:
             if STATE['state']!='cancelled':STATE.update(state='completed',error=None)
@@ -108,14 +122,15 @@ def run_queue(components):
         shutdown_process()
         with LOCK:
             if STATE['state']!='cancelled':STATE.update(state='failed',error=str(error))
-        if STATE['state']!='cancelled' and 'song-quality' not in components:remember(str(error))
+        if STATE['state']!='cancelled' and not any(c in OPTIONAL_COMPONENTS for c in components):remember(str(error))
     finally:
         with LOCK:STATE['active']=False;PROCESS=None
 
 def run(component):
     global PROCESS
     log=DATA/('setup-'+component+'.log')
-    env={**os.environ,'LOCAL_MUSIC_RESOURCES':str(ROOT),'LOCAL_MUSIC_ENGINES':str(ENGINE_ROOT),'LOCAL_MUSIC_UV':uv_path(),'HF_HUB_DISABLE_TELEMETRY':'1','HF_HUB_DISABLE_XET':'1','HF_HUB_DOWNLOAD_TIMEOUT':'30','HF_HUB_ETAG_TIMEOUT':'15','DO_NOT_TRACK':'1','PYTHONUNBUFFERED':'1','HF_HUB_DISABLE_PROGRESS_BARS':'0','TQDM_MININTERVAL':'1'}
+    bundle={'bgm':'sm-music','bgm-medium':'medium','sfx':'sm-sfx'}.get(component,'sm-music')
+    env={**os.environ,'LOCAL_MUSIC_RESOURCES':str(ROOT),'LOCAL_MUSIC_ENGINES':str(ENGINE_ROOT),'LOCAL_MUSIC_UV':uv_path(),'LOCAL_MUSIC_SA3_BUNDLE':bundle,'HF_HUB_DISABLE_TELEMETRY':'1','HF_HUB_DISABLE_XET':'1','HF_HUB_DOWNLOAD_TIMEOUT':'30','HF_HUB_ETAG_TIMEOUT':'15','DO_NOT_TRACK':'1','PYTHONUNBUFFERED':'1','HF_HUB_DISABLE_PROGRESS_BARS':'0','TQDM_MININTERVAL':'1'}
     python=bootstrap_python()
     command=[python,str(ROOT/SCRIPTS[component])] if python else [uv_path(),'run','--no-project','--python','3.11',str(ROOT/SCRIPTS[component])]
     if python:

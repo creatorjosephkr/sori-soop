@@ -34,8 +34,9 @@ def main():
             texts.append(target.decode(output))
         return ' '.join(texts)
     job=json.loads(Path(args.request).read_text(encoding='utf-8'))
-    english=translate_segments(job['prompt'],translate)
-    result={'text':english,'model':MODEL_ID,'revision':REVISION}
+    english=translate_segments(job['prompt'],translate) if job.get('prompt') else ''
+    negative=translate_segments(job['negativePrompt'],translate) if job.get('negativePrompt') else ''
+    result={'text':english,'negativeText':negative,'model':MODEL_ID,'revision':REVISION}
     output=Path(args.out);pending=output.with_suffix('.tmp')
     pending.write_text(json.dumps(result,ensure_ascii=False), encoding='utf-8');pending.replace(output)
     print('로컬 한영 번역 완료',flush=True)
