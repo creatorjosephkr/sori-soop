@@ -3,7 +3,7 @@
     const panel=document.getElementById('model-setup'),message=document.getElementById('setup-status');
     const opener=document.getElementById('open-setup'),labels={bgm:'배경음악',translation:'한국어 번역',song:'노래','song-quality':'품질 우선 1.7B 모델'};
     const baseIntroduction=document.getElementById('setup-introduction').textContent;
-    let retryComponent='all';
+    let retryComponent='all',currentStatus=null;
     let running=false,autoAttempted=false,timer=null,busy=false,pendingOpen=false,previousFocus=null,initial=true;
     function show(){
         if(panel.open)return;
@@ -33,6 +33,7 @@
                 message.textContent='첫 실행에 필요한 모델을 자동으로 준비합니다. 인터넷 연결을 유지해 주세요.';
                 status=await api('/api/setup',{component:'auto'});
             }
+            currentStatus=status;
             panel.setAttribute('aria-busy',String(status.active));
             const activity=document.getElementById('setup-activity');
             activity.classList.toggle('is-active',status.active);
@@ -80,6 +81,6 @@
         finally{busy=false;update();}
     });
     document.getElementById('setup-log-bottom').onclick=()=>{const log=document.getElementById('setup-log');log.scrollTop=log.scrollHeight;};
-    window.StudioSetup={get active(){return running;},async prepareQuality(){show();await api('/api/setup',{component:'song-quality'});running=true;render();await update();}};
+    window.StudioSetup={get active(){return running;},get status(){return currentStatus;},open(){show();update();},async prepareQuality(){show();currentStatus=await api('/api/setup',{component:'song-quality'});running=true;render();await update();}};
     setTimeout(update,700);
 })();
