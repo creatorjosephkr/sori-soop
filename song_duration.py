@@ -21,10 +21,11 @@ def explicit_bpm(caption):
     return bpm
 
 
-def plan_options(settings,caption=''):
+def plan_options(settings,caption='',language=None):
     metadata={} if automatic(settings) else {'duration':settings['seconds']}
     bpm=explicit_bpm(caption)
     if bpm is not None:metadata['bpm']=bpm
+    if language and language!='unknown':metadata['language']=language
     return {'target_duration':None if automatic(settings) else settings['seconds'],'user_metadata':metadata or None}
 
 
@@ -34,6 +35,12 @@ def check_planned_bpm(requested,metadata):
     except (TypeError,ValueError):actual=None
     if actual!=requested:
         raise ValueError(f'요청한 {requested} BPM과 곡 구성의 템포({metadata.get("bpm", "확인 불가")} BPM)가 일치하지 않습니다. 다른 템포로 생성하지 않고 중단했습니다. 다시 시도해 주세요.')
+
+
+def check_planned_language(requested,metadata):
+    if not requested or requested=='unknown':return
+    if str(metadata.get('language','')).lower()!=requested:
+        raise ValueError(f'요청한 보컬 언어({requested})와 곡 구성 언어({metadata.get("language", "확인 불가")})가 일치하지 않습니다. 다른 언어로 생성하지 않고 중단했습니다. 다시 시도해 주세요.')
 
 
 def planned_seconds(settings,metadata,audio_codes):

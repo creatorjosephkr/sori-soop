@@ -13,7 +13,7 @@ if sys.platform=='win32':
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from app_paths import ENGINE_ROOT
-from song_duration import automatic,plan_options,planned_seconds,explicit_bpm,check_planned_bpm
+from song_duration import automatic,plan_options,planned_seconds,explicit_bpm,check_planned_bpm,check_planned_language
 from song_lyrics import check_lyric_tokens,check_audio_codes,check_caption_tokens,check_formatted_lyric_tokens
 REPO = ENGINE_ROOT / 'ace-step'
 sys.path.insert(0, str(REPO))
@@ -72,8 +72,10 @@ def validate_caption(tokenizer, text, *, formatted=True):
     print(f'음악 설명 확인: {count}/256 tokens'+(' (내부 지시문 포함)' if formatted else ' (설명 자체)'),flush=True)
     return count
 
-def validate_tempo(metadata):
-    try:check_planned_bpm(requested_bpm,metadata)
+def validate_plan_controls(metadata):
+    try:
+        check_planned_bpm(requested_bpm,metadata)
+        check_planned_language(job['language'],metadata)
     except ValueError as error:
         input_check_path.write_text(json.dumps({'ok':False,'error':str(error)},ensure_ascii=False),encoding='utf-8')
         raise
@@ -108,8 +110,8 @@ if a.phase!='render':
         raise RuntimeError(message)
     try:
         plan=planner.generate_with_stop_condition(caption=caption,lyrics=lyrics,
-            infer_type='llm_dit',**plan_options(settings,tempo_caption),use_cot_caption=False,
-            use_cot_language=False,use_cot_metas=True,cfg_scale=1.0,
+            infer_type='llm_dit',**plan_options(settings,tempo_caption,job['language']),use_cot_caption=False,
+            use_cot_language=True,use_cot_metas=True,cfg_scale=1.0,
             batch_size=1,seeds=[job['seed']])
         if not plan.get('success') or not plan.get('audio_codes'):
             raise RuntimeError(plan.get('error') or '곡 구성을 생성하지 못했습니다.')
@@ -118,12 +120,12 @@ if a.phase!='render':
         if device=='mps':
             mx.clear_cache();torch.mps.empty_cache()
     metadata=plan.get('metadata') or {}
-    validate_tempo(metadata)
+    validate_plan_controls(metadata)
     duration=planned_seconds(settings,metadata,plan['audio_codes'])
     validate_planned_caption(metadata,duration)
     audio_code_count=check_audio_codes(plan['audio_codes'],duration)
     if automatic(settings):stage(f'가사에 맞춰 정한 노래 길이: {duration}초')
-    plan_path.write_text(json.dumps({'metadata':metadata,'audioCodes':plan['audio_codes'],'plannedSeconds':duration,'durationMode':settings.get('durationMode','manual'),'lyricTokens':token_count,'lyricLines':len([line for line in lyrics.splitlines() if line.strip()]),'audioCodeCount':audio_code_count,'expectedAudioCodeCount':round(duration*5),'requestedBpm':requested_bpm},ensure_ascii=False), encoding='utf-8')
+    plan_path.write_text(json.dumps({'metadata':metadata,'audioCodes':plan['audio_codes'],'plannedSeconds':duration,'durationMode':settings.get('durationMode','manual'),'lyricTokens':token_count,'lyricLines':len([line for line in lyrics.splitlines() if line.strip()]),'audioCodeCount':audio_code_count,'expectedAudioCodeCount':round(duration*5),'requestedBpm':requested_bpm,'requestedLanguage':job['language']},ensure_ascii=False), encoding='utf-8')
     if a.phase=='plan':
         stage('곡 구성 완료 · 분석 프로세스의 메모리를 반환합니다')
         raise SystemExit(0)
@@ -131,7 +133,7 @@ else:
     plan=json.loads(plan_path.read_text(encoding='utf-8'))
     plan['audio_codes']=plan['audioCodes']
     metadata=plan.get('metadata') or {}
-    validate_tempo(metadata)
+    validate_plan_controls(metadata)
     duration=planned_seconds(settings,metadata,plan['audio_codes'])
     validate_planned_caption(metadata,duration)
     check_audio_codes(plan['audio_codes'],duration)
@@ -189,7 +191,7 @@ if not ok:
     raise RuntimeError(message)
 stage('가사와 음악 설명으로 노래를 생성하고 있습니다')
 params=GenerationParams(caption=caption,lyrics=lyrics,instrumental=False,
-    vocal_language=job['language'],duration=duration,seed=job['seed'],
+    vocal_language=job['language'] if job['language']!='unknown' else metadata.get('language','unknown'),duration=duration,seed=job['seed'],
     audio_codes=plan['audio_codes'],bpm=metadata.get('bpm'),keyscale=metadata.get('keyscale',''),
     timesignature=str(metadata.get('timesignature','')),
     inference_steps=8,thinking=False,use_cot_metas=False,use_cot_caption=False,

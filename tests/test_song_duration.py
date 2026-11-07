@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 import app
 import engine
-from song_duration import plan_options,planned_seconds,explicit_bpm,check_planned_bpm
+from song_duration import plan_options,planned_seconds,explicit_bpm,check_planned_bpm,check_planned_language
 
 
 class SongDurationTests(unittest.TestCase):
@@ -67,3 +67,11 @@ class ExplicitTempoTests(unittest.TestCase):
         check_planned_bpm(None,{'bpm':201})
         for metadata in ({'bpm':201},{'bpm':None},{}):
             with self.assertRaisesRegex(ValueError,'일치하지'):check_planned_bpm(72,metadata)
+
+    def test_vocal_language_is_locked_in_the_planner_as_well_as_synthesis(self):
+        settings={'mode':'song','durationMode':'auto','seconds':None}
+        self.assertEqual(plan_options(settings,'72 BPM','ko'),{'target_duration':None,'user_metadata':{'bpm':72,'language':'ko'}})
+        self.assertEqual(plan_options(settings,'ballad','unknown'),{'target_duration':None,'user_metadata':None})
+        check_planned_language('ko',{'language':'ko'})
+        check_planned_language('unknown',{'language':'ja'})
+        with self.assertRaisesRegex(ValueError,'보컬 언어'):check_planned_language('ko',{'language':'en'})
