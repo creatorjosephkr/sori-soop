@@ -18,17 +18,27 @@
 
 # 다운로드 및 실행
 
-[최신 릴리즈 다운로드](https://github.com/creatorjosephkr/sori-soop/releases/latest)
+* 설치 파일을 직접 다운로드하여 설치하세요.
+>[최신 릴리즈 다운로드](https://github.com/creatorjosephkr/sori-soop/releases/latest)
 
-- Apple Silicon Mac(macOS 14 이상): `macos-arm64.dmg`를 열고 `SoriSoop.app`을 Applications에 복사합니다.
-- Windows 10(버전 2004 이상)/11 x64: `windows-x64-setup.exe`를 실행하고 설치 위치를 선택합니다. 시작 메뉴·바탕화면 바로가기와 앱 제거 기능을 제공합니다. WebView2·Visual C++ 실행 도구는 설치 파일에 포함되어 필요한 경우 자동 설치합니다. Windows 권한 요청이 나오면 허용해 주세요.
-- 첫 실행 시 별도 모달창에서 안내와 함께 배경음악·한글 번역·노래의 실행 환경과 모델을 순서대로 자동 준비합니다. 창을 닫아도 준비는 계속되며 사이드바의 실행 준비 상태 버튼에서 다시 열 수 있습니다. 이미 설치된 항목은 건너뛰며, 실패하면 안내에 따라 다시 시도할 수 있습니다. 배포용 앱은 Python·Git을 별도로 설치할 필요가 없습니다. 첫 실행 자동 준비에는 인터넷과 16GB 이상의 여유 공간이 필요합니다.
-- Windows 1.0.0은 CPU 실행 경로입니다. 구형 GPU에 의존하지 않으며 노래 생성은 오래 걸릴 수 있습니다. Windows에서의 노래 생성 성능과 다양한 GPU 조합은 별도 검증 대상입니다.
-- 현재 배포본은 Developer ID 공증/Authenticode 서명이 없습니다. 운영체제의 출처 확인 안내가 표시될 수 있습니다.
+* 설치방법
+  - 현재 배포본은 Developer ID 공증/Authenticode 서명이 없습니다. 운영체제의 출처 확인 안내가 표시될 수 있습니다.
+  - Apple Silicon Mac(macOS 14 이상): `macos-arm64.dmg`를 열고 `SoriSoop.app`을 Applications에 복사합니다.
+  - Windows 10(버전 2004 이상)/11 x64: `windows-x64-setup.exe`를 실행하고 설치 위치를 선택합니다. Windows 권한 요청이 나오면 허용해 주세요.
+  - 첫 실행 자동 준비에는 인터넷과 16GB 이상의 여유 공간이 필요합니다.
+    
+* 사용 도구 자동 설치
+  - 첫 실행 시 별도 모달창에서 안내와 함께 배경음악·한글 번역·노래의 실행 환경과 모델을 순서대로 자동 준비합니다.
+  - 창을 닫아도 준비는 계속되며 사이드바의 실행 준비 상태 버튼에서 다시 열 수 있습니다.
+  - 이미 설치된 항목은 건너뛰며, 실패하면 안내에 따라 다시 시도할 수 있습니다.
+  - 배포용 앱은 Python·Git을 별도로 설치할 필요가 없습니다.
+  - 앱 파일과 모델을 분리했습니다. 앱을 업데이트해도 설정·음원·모델은 사용자 홈의 `.local-music-studio/`에 유지됩니다. 앱 삭제만으로 이 폴더가 자동 삭제되지는 않습니다.
+ 
+* 라이선스
+  - 앱과 모델은 별도 라이선스를 따릅니다.
+  - 앱 소스는 [MIT](LICENSE), 모델 및 폰트·실행 구성요소는 [개별 이용 조건](THIRD_PARTY_NOTICES.txt)을 확인하세요.
+  - Stable Audio 모델은 Stability AI Community License의 조건을 따르므로 앱의 MIT 라이선스가 모델 이용 조건을 대체하지 않습니다.
 
-앱과 모델은 별도 라이선스를 따릅니다. 앱 소스는 [MIT](LICENSE), 모델 및 폰트·실행 구성요소는 [개별 이용 조건](THIRD_PARTY_NOTICES.txt)을 확인하세요. Stable Audio 모델은 Stability AI Community License의 조건을 따르므로 앱의 MIT 라이선스가 모델 이용 조건을 대체하지 않습니다.
-
-앱 파일과 모델을 분리했습니다. 앱을 업데이트해도 설정·음원·모델은 사용자 홈의 `.local-music-studio/`에 유지됩니다. 앱 삭제만으로 이 폴더가 자동 삭제되지는 않습니다.
 
 # 소스 코드로 실행
 
