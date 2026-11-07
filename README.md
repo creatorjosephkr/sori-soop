@@ -9,10 +9,12 @@
 
 # 소리숲 · Local Music Studio
 
-<p align="center">
-   주요기능: 배경음악 만들기, 가사  있는 노래 만들기, 효과음 만들기
-   <img width="3424" height="2384" alt="image" src="https://github.com/user-attachments/assets/589d554e-5b4e-4a73-9f38-d3c719100d93" />
-</p>
+* PC에 직접 설치하여 사용하는 **음악/노래/효과음을 만드는 프로그램**입니다.(로컬 인공지능 도구 사용)
+* **누구나 무료**로 이용할 수 있습니다.
+* 생성한 음악/노래/효과음은 **상업적으로 사용가능** 합니다.<br />
+* **지원 시스템**: Windows 10/11, 맥OS(애플 실리콘 칩 M 시리즈 지원) 
+<img width="3424" height="2384" alt="image" src="https://github.com/user-attachments/assets/589d554e-5b4e-4a73-9f38-d3c719100d93" />
+
 
 # 다운로드 및 실행
 
