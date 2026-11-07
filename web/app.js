@@ -74,6 +74,7 @@ function renderSongQuality(){
     const error=qualityInstallError||(!qualityReady&&setup?.status?.component==='song-quality'&&setup.status.state==='failed'?setup.status.error:'');
     const notice=$('quality-install-notice'),button=$('prepare-song-quality');
     notice.hidden=mode!=='song'||!quality;
+    $('song-quality').setAttribute('aria-describedby',quality?'quality-install-title quality-install-message song-quality-help':'song-quality-help');
     notice.classList.toggle('is-ready',qualityReady);notice.classList.toggle('is-installing',busy&&!qualityReady);notice.classList.toggle('is-error',!!error&&!qualityReady);
     setText('quality-install-title',qualityReady?'1.7B 품질 모델이 설치되어 있습니다.':busy?'1.7B 품질 모델을 설치하고 있습니다.':error?'품질 모델 설치를 완료하지 못했습니다.':'1.7B 품질 모델이 아직 설치되어 있지 않습니다.');
     const blocked=!baseReady?'먼저 왼쪽 사이드바에서 기본 실행 준비를 완료해 주세요.':activeJob?'현재 음악 생성이 끝나면 설치할 수 있습니다.':setup?.active&&!installing?'다른 모델 준비가 끝나면 설치할 수 있습니다.':'';
