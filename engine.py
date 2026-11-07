@@ -32,6 +32,8 @@ def song_paths():
     python = folder / ('.venv/Scripts/python.exe' if platform.system() == 'Windows' else '.venv/bin/python')
     return folder, python, ROOT / 'runners' / 'song.py'
 
+def planner_ready(quality='light'):return song_runtime.planner_ready(ENGINE_ROOT/'ace-step',quality)
+
 def ready(backend, model='small-music'):
     if model == 'ace-step':
         folder, python, script = song_paths()
@@ -77,6 +79,11 @@ def start(settings, prompt, available=None, lyrics='', language='ko', title=''):
     if settings['model'] != ('ace-step' if song else 'small-music'):
         raise ValueError('배경음악에는 Small-Music, 보컬 노래에는 ACE-Step을 선택하세요.')
     if song:
+        if settings.get('songQuality','light') not in song_runtime.PLANNERS:raise ValueError('노래 품질 모델을 확인하세요.')
+        if settings.get('songQuality')=='quality':
+            if not planner_ready('quality'):raise ValueError('품질 우선 모델을 먼저 준비해 주세요. 노래 품질 설정 아래의 준비 버튼을 누르세요.')
+            minimum=4 if settings['backend']=='apple' else 8
+            if available is not None and available<minimum:raise ValueError(f'품질 모델을 위해 가용 메모리 {minimum}GB 이상을 확보하거나 가벼운 모델을 선택해 주세요.')
         song_duration.explicit_bpm(prompt)
         if not isinstance(lyrics, str) or not lyrics.strip() or len(lyrics) > 4000:
             raise ValueError('노래 가사를 1~4000자로 입력하세요.')

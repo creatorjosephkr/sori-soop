@@ -95,10 +95,11 @@ def run(args,root,data):
     result={'ok':False}
     try:
         if args.self_test:
-            from app_paths import uv_path,ENGINE_ROOT,background_options
+            from app_paths import ROOT,uv_path,ENGINE_ROOT,background_options
             import subprocess
             for endpoint in ['/','/style.css','/app.js','/setup.js','/icons/sorisup.svg','/fonts/NotoSansKR-Variable.ttf','/spon/spon.svg']:
                 with urllib.request.urlopen(url+endpoint) as response:assert response.status==200
+            assert (ROOT/'setup_song_quality.py').is_file()
             status=json.load(urllib.request.urlopen(url+'/api/setup'))
             assert not any(status['ready'].values())
             assert ENGINE_ROOT==data/'engines'

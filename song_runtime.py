@@ -39,6 +39,15 @@ def validate_native(folder):
     assert AceStepHandler and LLMHandler and GenerationParams
     return {'ok':True,'revision':REVISION,'versions':actual,'nativeVisionOps':True,'aceStepImports':True}
 
+PLANNERS={'light':'acestep-5Hz-lm-0.6B','quality':'acestep-5Hz-lm-1.7B'}
+
+def planner_ready(folder,quality='light'):
+    name=PLANNERS.get(quality)
+    if not name:return False
+    path=Path(folder)/'checkpoints'/name
+    return all((path/file).is_file() for file in ('model.safetensors','config.json','tokenizer.json','tokenizer_config.json'))
+
+
 if __name__=='__main__':
     import argparse
     parser=argparse.ArgumentParser();parser.add_argument('--folder',required=True);parser.add_argument('--report',required=True);args=parser.parse_args()

@@ -13,6 +13,7 @@ if sys.platform=='win32':
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from app_paths import ENGINE_ROOT
+from song_runtime import PLANNERS
 from song_duration import automatic,plan_options,planned_seconds,explicit_bpm,check_planned_bpm,check_planned_language
 from song_lyrics import check_lyric_tokens,check_audio_codes,check_caption_tokens,check_formatted_lyric_tokens
 REPO = ENGINE_ROOT / 'ace-step'
@@ -104,7 +105,7 @@ if a.phase!='render':
     del tokenizer
     from acestep.llm_inference import LLMHandler
     planner=LLMHandler()
-    message,ok=planner.initialize(checkpoint_dir=str(REPO/'checkpoints'),lm_model_path='acestep-5Hz-lm-0.6B',
+    message,ok=planner.initialize(checkpoint_dir=str(REPO/'checkpoints'),lm_model_path=PLANNERS[settings.get('songQuality','light')],
         backend='mlx' if device=='mps' else 'pt',device=device,offload_to_cpu=False)
     if not ok:
         raise RuntimeError(message)
@@ -125,7 +126,7 @@ if a.phase!='render':
     validate_planned_caption(metadata,duration)
     audio_code_count=check_audio_codes(plan['audio_codes'],duration)
     if automatic(settings):stage(f'가사에 맞춰 정한 노래 길이: {duration}초')
-    plan_path.write_text(json.dumps({'metadata':metadata,'audioCodes':plan['audio_codes'],'plannedSeconds':duration,'durationMode':settings.get('durationMode','manual'),'lyricTokens':token_count,'lyricLines':len([line for line in lyrics.splitlines() if line.strip()]),'audioCodeCount':audio_code_count,'expectedAudioCodeCount':round(duration*5),'requestedBpm':requested_bpm,'requestedLanguage':job['language']},ensure_ascii=False), encoding='utf-8')
+    plan_path.write_text(json.dumps({'metadata':metadata,'audioCodes':plan['audio_codes'],'plannedSeconds':duration,'durationMode':settings.get('durationMode','manual'),'lyricTokens':token_count,'lyricLines':len([line for line in lyrics.splitlines() if line.strip()]),'audioCodeCount':audio_code_count,'expectedAudioCodeCount':round(duration*5),'requestedBpm':requested_bpm,'requestedLanguage':job['language'],'plannerModel':PLANNERS[settings.get('songQuality','light')]},ensure_ascii=False), encoding='utf-8')
     if a.phase=='plan':
         stage('곡 구성 완료 · 분석 프로세스의 메모리를 반환합니다')
         raise SystemExit(0)

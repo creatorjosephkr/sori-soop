@@ -15,7 +15,8 @@ LOCK=threading.Lock()
 STATE={'active':False,'component':None,'state':'idle','error':None}
 PROCESS=None
 SETUP_REVISION='windows-song-runtime-v3'
-SCRIPTS={'bgm':'setup_engine.py','translation':'setup_translation.py','song':'setup_song.py'}
+BASE_COMPONENTS=('bgm','translation','song')
+SCRIPTS={'bgm':'setup_engine.py','translation':'setup_translation.py','song':'setup_song.py','song-quality':'setup_song_quality.py'}
 
 def active():
     with LOCK:return STATE['active']
@@ -59,7 +60,7 @@ def status():
     if state['state']=='idle' and saved_error():state.update(state='failed',error=saved_error())
     log=log_tail(state.get('component'))
     now=time.time()
-    return {**state,'log':log,'elapsedSeconds':max(0,int(now-state.get('startedAt',now))),'quietSeconds':max(0,int(now-(log['updatedAt'] or state.get('componentStartedAt',now)))),'storage':storage.describe(),'autoSetupEnabled':os.environ.get('LOCAL_MUSIC_AUTO_SETUP')!='0','ready':{'bgm':engine.ready(backend) and bgm_weights_ready(backend),'translation':translation.ready(),'song':engine.ready(backend,'ace-step')}}
+    return {**state,'log':log,'elapsedSeconds':max(0,int(now-state.get('startedAt',now))),'quietSeconds':max(0,int(now-(log['updatedAt'] or state.get('componentStartedAt',now)))),'storage':storage.describe(),'autoSetupEnabled':os.environ.get('LOCAL_MUSIC_AUTO_SETUP')!='0','optionalReady':{'song-quality':engine.planner_ready('quality')},'ready':{'bgm':engine.ready(backend) and bgm_weights_ready(backend),'translation':translation.ready(),'song':engine.ready(backend,'ace-step')}}
 
 def start(component):
     import engine
@@ -68,7 +69,8 @@ def start(component):
         current=status()
         if component=='auto' and (current['active'] or current['state']=='failed' or engine.ACTIVE):return current
         if current['active'] or engine.ACTIVE:raise ValueError('현재 작업이 끝난 뒤 모델을 준비해 주세요.')
-        components=[key for key in SCRIPTS if not current['ready'][key]] if component in ('all','auto') else [component]
+        components=[key for key in BASE_COMPONENTS if not current['ready'][key]] if component in ('all','auto') else [component]
+        if component=='song-quality' and not current['ready'].get('song'):raise ValueError('노래 기본 실행 준비를 먼저 완료해 주세요.')
         if not components:return current
         DATA.mkdir(parents=True,exist_ok=True)
         try:
@@ -92,10 +94,13 @@ def run_queue(components):
                 STATE.update(component=component,step=index,total=len(components),componentStartedAt=time.time())
             import song_runtime
             required=16 if component=='song' and not song_runtime.models_ready(ENGINE_ROOT/'ace-step') else 3
+            if component=='song-quality':required=5
             if shutil.disk_usage(ENGINE_ROOT).free<required*1024**3:
-                raise RuntimeError('저장 공간이 부족합니다. 노래는 16GB, 나머지는 3GB 이상의 여유 공간을 확보한 뒤 다시 시도해 주세요.')
+                raise RuntimeError('저장 공간이 부족합니다. 노래는 16GB, 품질 모델은 5GB, 나머지는 3GB 이상의 여유 공간을 확보한 뒤 다시 시도해 주세요.')
             run(component)
-            if not status()['ready'][component]:raise RuntimeError('설치 결과를 확인하지 못했습니다. 다시 준비해 주세요.')
+            current=status()
+            ready=current.get('optionalReady',{}).get(component) if component=='song-quality' else current['ready'][component]
+            if not ready:raise RuntimeError('설치 결과를 확인하지 못했습니다. 다시 준비해 주세요.')
         with LOCK:
             if STATE['state']!='cancelled':STATE.update(state='completed',error=None)
         remember()
@@ -103,7 +108,7 @@ def run_queue(components):
         shutdown_process()
         with LOCK:
             if STATE['state']!='cancelled':STATE.update(state='failed',error=str(error))
-        if STATE['state']!='cancelled':remember(str(error))
+        if STATE['state']!='cancelled' and 'song-quality' not in components:remember(str(error))
     finally:
         with LOCK:STATE['active']=False;PROCESS=None
 

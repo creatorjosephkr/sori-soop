@@ -145,8 +145,9 @@ def validate(settings):
         seconds = settings['seconds']
         if not auto_length and (type(seconds) is not int or not 10 <= seconds <= MODELS[model]['maxSeconds']):
             raise ValueError('음악 길이가 모델 지원 범위를 벗어났습니다.')
+    if settings.get('songQuality','light') not in ('light','quality'):raise ValueError('노래 품질 모델을 확인하세요.')
     validate_peak_db(settings.get('peakDb', -6))
-    return {k: settings[k] for k in ('policy', 'mode', 'model', 'seconds', 'backend', 'peakDb', 'durationMode') if k in settings}
+    return {k: settings[k] for k in ('policy', 'mode', 'model', 'seconds', 'backend', 'peakDb', 'durationMode', 'songQuality') if k in settings}
 
 def resolve_generation_settings(settings, info):
     resolved = dict(settings)
@@ -189,7 +190,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == '/api/status':
             info = diagnose()
             settings = read_settings()
-            return self.reply({'system': info, 'settings': settings, 'translationReady': translation.ready(), 'recommendation': recommend(info, settings.get('mode', 'bgm')), 'models': MODELS, 'engineReady': engine.ready('apple' if info['appleSilicon'] else 'cpu'), 'engines': {b: engine.ready(b) for b in ('apple', 'cpu')}, 'songEngines': {b: engine.ready(b, 'ace-step') for b in ('apple', 'cpu')}})
+            return self.reply({'system': info, 'settings': settings, 'translationReady': translation.ready(), 'recommendation': recommend(info, settings.get('mode', 'bgm')), 'models': MODELS, 'engineReady': engine.ready('apple' if info['appleSilicon'] else 'cpu'), 'engines': {b: engine.ready(b) for b in ('apple', 'cpu')}, 'songEngines': {b: engine.ready(b, 'ace-step') for b in ('apple', 'cpu')}, 'songPlanners':{q:engine.planner_ready(q) for q in ('light','quality')}})
         paths = {'/': 'index.html', '/style.css': 'style.css', '/app.js': 'app.js', '/presets.js': 'presets.js', '/player.js': 'player.js', '/icons.js': 'icons.js', '/setup.js': 'setup.js', '/updates.js': 'updates.js', '/fonts/NotoSansKR-Variable.ttf': 'fonts/NotoSansKR-Variable.ttf', '/icons/sorisup.svg': 'icons/sorisup.svg', '/icons/chatgpt.svg': 'icons/chatgpt.svg', '/icons/claude.ico': 'icons/claude.ico', '/icons/gemini.png': 'icons/gemini.png'}
         paths.update({'/spon/'+name: '../spon/'+name for name in ('spon.svg', 'kakaobank.png', 'paypal.png')})
         if self.path not in paths:
