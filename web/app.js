@@ -129,6 +129,7 @@ function resultMarkup(job){
     const date=new Date(job.createdAt*1000).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
     const language=({ko:'한국어',en:'영어',ja:'일본어',zh:'중국어',unknown:'기타 언어'})[job.language]||job.language;
     const info=[['모델',state?.models[settings.model]?.name||settings.model],['실행 방식',settings.backend==='apple'?'Apple Silicon':'CPU'],['음악 길이',durationText(job)]];
+    if(job.composition?.metadata?.bpm)info.push(['곡 구성 템포',job.composition.metadata.bpm+' BPM']);
     if(language)info.push(['보컬 언어',language]);
     if(settings.peakDb!==undefined)info.push(['최대 게인',settings.peakDb+'dB']);
     if(Number.isFinite(job.outputPeakDb))info.push(['실제 피크',job.outputPeakDb.toFixed(1)+'dB']);

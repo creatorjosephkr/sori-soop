@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 import app
 import engine
-from song_duration import plan_options,planned_seconds
+from song_duration import plan_options,planned_seconds,explicit_bpm,check_planned_bpm
 
 
 class SongDurationTests(unittest.TestCase):
@@ -50,3 +50,20 @@ with wave.open(a.out,'wb') as w:
                     self.assertEqual(job['durationSeconds'],12)
                     self.assertIsNone(job['settings']['seconds'])
                 finally:engine.cancel()
+
+class ExplicitTempoTests(unittest.TestCase):
+    def test_requested_bpm_overrides_auto_metadata_without_setting_duration(self):
+        settings={'mode':'song','durationMode':'auto','seconds':None}
+        for text in ('Warm ballad, 72 BPM.','BPM: 72','72bpm','72 BPM. Keep 72 BPM.'):
+            self.assertEqual(plan_options(settings,text),{'target_duration':None,'user_metadata':{'bpm':72}})
+        self.assertEqual(plan_options({'mode':'song','seconds':300},'72 BPM'),{'target_duration':300,'user_metadata':{'duration':300,'bpm':72}})
+
+    def test_ambiguous_or_invalid_tempo_is_not_silently_changed(self):
+        for text in ('80-100 BPM','80 - 100 BPM','warm ballad','about 72.5 BPM'):
+            self.assertIsNone(explicit_bpm(text))
+        for text in ('72 BPM then 120 BPM','20 BPM','BPM: 900'):
+            with self.assertRaises(ValueError):explicit_bpm(text)
+        check_planned_bpm(72,{'bpm':72})
+        check_planned_bpm(None,{'bpm':201})
+        for metadata in ({'bpm':201},{'bpm':None},{}):
+            with self.assertRaisesRegex(ValueError,'일치하지'):check_planned_bpm(72,metadata)

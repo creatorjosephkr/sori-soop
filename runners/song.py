@@ -13,7 +13,7 @@ if sys.platform=='win32':
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from app_paths import ENGINE_ROOT
-from song_duration import automatic,plan_options,planned_seconds
+from song_duration import automatic,plan_options,planned_seconds,explicit_bpm,check_planned_bpm
 from song_lyrics import check_lyric_tokens,check_audio_codes,check_caption_tokens,check_formatted_lyric_tokens
 REPO = ENGINE_ROOT / 'ace-step'
 sys.path.insert(0, str(REPO))
@@ -31,6 +31,11 @@ a=p.parse_args()
 job=json.loads(Path(a.request).read_text(encoding='utf-8'))
 caption=job.get('generationPrompt',job['prompt'])
 lyrics=job['lyrics']
+tempo_caption=job['prompt']
+requested_bpm=explicit_bpm(tempo_caption)
+if requested_bpm is None:
+    tempo_caption=caption
+    requested_bpm=explicit_bpm(tempo_caption)
 progress=Path(a.progress)
 def stage(text):
     temp=progress.with_suffix('.tmp')
@@ -67,6 +72,12 @@ def validate_caption(tokenizer, text, *, formatted=True):
     print(f'음악 설명 확인: {count}/256 tokens'+(' (내부 지시문 포함)' if formatted else ' (설명 자체)'),flush=True)
     return count
 
+def validate_tempo(metadata):
+    try:check_planned_bpm(requested_bpm,metadata)
+    except ValueError as error:
+        input_check_path.write_text(json.dumps({'ok':False,'error':str(error)},ensure_ascii=False),encoding='utf-8')
+        raise
+
 def validate_planned_caption(metadata, duration):
     # Reuse pinned upstream formatters; the metadata is exactly what batch_prep builds.
     from transformers import AutoTokenizer
@@ -97,7 +108,7 @@ if a.phase!='render':
         raise RuntimeError(message)
     try:
         plan=planner.generate_with_stop_condition(caption=caption,lyrics=lyrics,
-            infer_type='llm_dit',**plan_options(settings),use_cot_caption=False,
+            infer_type='llm_dit',**plan_options(settings,tempo_caption),use_cot_caption=False,
             use_cot_language=False,use_cot_metas=True,cfg_scale=1.0,
             batch_size=1,seeds=[job['seed']])
         if not plan.get('success') or not plan.get('audio_codes'):
@@ -107,11 +118,12 @@ if a.phase!='render':
         if device=='mps':
             mx.clear_cache();torch.mps.empty_cache()
     metadata=plan.get('metadata') or {}
+    validate_tempo(metadata)
     duration=planned_seconds(settings,metadata,plan['audio_codes'])
     validate_planned_caption(metadata,duration)
     audio_code_count=check_audio_codes(plan['audio_codes'],duration)
     if automatic(settings):stage(f'가사에 맞춰 정한 노래 길이: {duration}초')
-    plan_path.write_text(json.dumps({'metadata':metadata,'audioCodes':plan['audio_codes'],'plannedSeconds':duration,'durationMode':settings.get('durationMode','manual'),'lyricTokens':token_count,'lyricLines':len([line for line in lyrics.splitlines() if line.strip()]),'audioCodeCount':audio_code_count,'expectedAudioCodeCount':round(duration*5)},ensure_ascii=False), encoding='utf-8')
+    plan_path.write_text(json.dumps({'metadata':metadata,'audioCodes':plan['audio_codes'],'plannedSeconds':duration,'durationMode':settings.get('durationMode','manual'),'lyricTokens':token_count,'lyricLines':len([line for line in lyrics.splitlines() if line.strip()]),'audioCodeCount':audio_code_count,'expectedAudioCodeCount':round(duration*5),'requestedBpm':requested_bpm},ensure_ascii=False), encoding='utf-8')
     if a.phase=='plan':
         stage('곡 구성 완료 · 분석 프로세스의 메모리를 반환합니다')
         raise SystemExit(0)
@@ -119,6 +131,7 @@ else:
     plan=json.loads(plan_path.read_text(encoding='utf-8'))
     plan['audio_codes']=plan['audioCodes']
     metadata=plan.get('metadata') or {}
+    validate_tempo(metadata)
     duration=planned_seconds(settings,metadata,plan['audio_codes'])
     validate_planned_caption(metadata,duration)
     check_audio_codes(plan['audio_codes'],duration)
@@ -139,7 +152,7 @@ class LocalSongHandler(AceStepHandler):
                     except ValueError as error:
                         input_check_path.write_text(json.dumps({'ok':False,'error':str(error)},ensure_ascii=False),encoding='utf-8')
                         raise
-                    print(f'실제 엔진 입력 가사 확인: {count}/2048 tokens (잘림 없음)',flush=True)
+                    print(f'실제 엔진 가사 입력: {count}/2048 tokens (입력 한도 이내 · 가창 정확도 미검증)',flush=True)
                 return original(text,*token_args,**token_kwargs)
         self.text_tokenizer=CheckedTokenizer()
         try:return super()._prepare_text_conditioning_inputs(*args,**kwargs)

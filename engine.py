@@ -77,6 +77,7 @@ def start(settings, prompt, available=None, lyrics='', language='ko', title=''):
     if settings['model'] != ('ace-step' if song else 'small-music'):
         raise ValueError('배경음악에는 Small-Music, 보컬 노래에는 ACE-Step을 선택하세요.')
     if song:
+        song_duration.explicit_bpm(prompt)
         if not isinstance(lyrics, str) or not lyrics.strip() or len(lyrics) > 4000:
             raise ValueError('노래 가사를 1~4000자로 입력하세요.')
         if language not in ('ko', 'en', 'ja', 'zh', 'unknown'):

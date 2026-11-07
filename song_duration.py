@@ -9,9 +9,31 @@ MAX_SECONDS=600
 def automatic(settings):return settings.get('mode')=='song' and settings.get('durationMode','manual')=='auto'
 
 
-def plan_options(settings):
-    if automatic(settings):return {'target_duration':None,'user_metadata':None}
-    return {'target_duration':settings['seconds'],'user_metadata':{'duration':settings['seconds']}}
+def explicit_bpm(caption):
+    caption=re.sub(r'\b\d+(?:\.\d+)?\s*[-~–—]\s*\d+(?:\.\d+)?\s*bpm\b','',caption or '',flags=re.I)
+    number=r'(\d{1,4})(?![\d.]|\s*[-~–—]\s*\d)'
+    patterns=(r'(?<![\w.\-–—~])'+number+r'\s*bpm\b',r'\bbpm\s*[:=]?\s*'+number)
+    found={int(match.group(1)) for pattern in patterns for match in re.finditer(pattern,caption or '',flags=re.I)}
+    if len(found)>1:raise ValueError('음악 설명에 서로 다른 BPM이 여러 개 있습니다. 곡 전체에 적용할 BPM 하나만 적어 주세요.')
+    if not found:return None
+    bpm=found.pop()
+    if not 30<=bpm<=300:raise ValueError('노래 템포는 30~300 BPM 범위로 적어 주세요.')
+    return bpm
+
+
+def plan_options(settings,caption=''):
+    metadata={} if automatic(settings) else {'duration':settings['seconds']}
+    bpm=explicit_bpm(caption)
+    if bpm is not None:metadata['bpm']=bpm
+    return {'target_duration':None if automatic(settings) else settings['seconds'],'user_metadata':metadata or None}
+
+
+def check_planned_bpm(requested,metadata):
+    if requested is None:return
+    try:actual=float(metadata.get('bpm'))
+    except (TypeError,ValueError):actual=None
+    if actual!=requested:
+        raise ValueError(f'요청한 {requested} BPM과 곡 구성의 템포({metadata.get("bpm", "확인 불가")} BPM)가 일치하지 않습니다. 다른 템포로 생성하지 않고 중단했습니다. 다시 시도해 주세요.')
 
 
 def planned_seconds(settings,metadata,audio_codes):
