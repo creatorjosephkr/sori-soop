@@ -19,7 +19,7 @@
 # 다운로드 및 실행
 
 * 설치 파일을 직접 다운로드하여 설치하세요.
->[최신 릴리즈 다운로드](https://github.com/creatorjosephkr/sori-soop/releases/latest)
+  - [최신 릴리즈 다운로드](https://github.com/creatorjosephkr/sori-soop/releases/latest)
 
 * 설치방법
   - 현재 배포본은 Developer ID 공증/Authenticode 서명이 없습니다. 운영체제의 출처 확인 안내가 표시될 수 있습니다.
