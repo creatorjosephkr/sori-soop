@@ -117,19 +117,27 @@ class UpdateHttpTests(unittest.TestCase):
 
     def test_check_open_and_origin_protection(self):
         info={'available':True,'releaseUrl':app.updates.REPOSITORY+'/releases/tag/v1.0.2','downloadUrl':None}
-        with patch.object(app.updates,'check',return_value=info) as check,patch.object(app,'open_external') as opener:
+        with patch.object(app.updates,'check',return_value=info) as check,patch.object(app,'open_external') as opener,patch.object(app,'schedule_exit') as exiter:
             with urllib.request.urlopen(urllib.request.Request(self.base+'/api/updates/check',b'{}')) as response:
                 self.assertEqual(json.load(response),info)
             with urllib.request.urlopen(urllib.request.Request(self.base+'/api/updates/open/release',b'{}')) as response:
                 self.assertTrue(json.load(response)['ok'])
             opener.assert_called_once_with(info['releaseUrl'])
-            with self.assertRaises(urllib.error.HTTPError) as error:
-                urllib.request.urlopen(urllib.request.Request(self.base+'/api/updates/open/download',b'{}'))
-            self.assertEqual(error.exception.code,503);error.exception.close()
+            exiter.assert_not_called()
+            with urllib.request.urlopen(urllib.request.Request(self.base+'/api/updates/open/download',b'{}')) as response:
+                self.assertTrue(json.load(response)['ok'])
+            self.assertEqual(opener.call_count,2)
+            opener.assert_called_with(info['releaseUrl'])
+            exiter.assert_called_once_with()
             count=check.call_count
             with self.assertRaises(urllib.error.HTTPError) as error:
                 urllib.request.urlopen(urllib.request.Request(self.base+'/api/updates/check',b'{}',{'Origin':'https://evil.example'}))
             self.assertEqual(error.exception.code,403);error.exception.close();self.assertEqual(count,check.call_count)
+        with patch.object(app.updates,'check',return_value={'available':False,'releaseUrl':info['releaseUrl']}):
+            for target in ('release','download'):
+                with self.assertRaises(urllib.error.HTTPError) as error:
+                    urllib.request.urlopen(urllib.request.Request(self.base+'/api/updates/open/'+target,b'{}'))
+                self.assertEqual(error.exception.code,503);error.exception.close()
         with patch.object(app.updates,'check',side_effect=OSError('offline')):
             with self.assertRaises(urllib.error.HTTPError) as error:
                 urllib.request.urlopen(urllib.request.Request(self.base+'/api/updates/check',b'{}'))

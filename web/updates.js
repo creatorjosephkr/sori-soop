@@ -11,7 +11,7 @@
         if(!manualPending&&typeof jobHistory!=='undefined'&&jobHistory.some(j=>['queued','running'].includes(j.status)))return;
         opener=document.activeElement;
         document.getElementById('update-description').textContent=`현재 v${pending.currentVersion} → 새 버전 v${pending.latestVersion}`;
-        document.getElementById('update-download').hidden=!pending.downloadUrl;
+        document.getElementById('update-download').hidden=!pending.releaseUrl;
         document.getElementById('update-open-status').textContent='';
         pending=null;manualPending=false;dialog.showModal();
     }
@@ -33,15 +33,20 @@
         const box=dialog.getBoundingClientRect();
         if(event.target===dialog&&(event.clientX<box.left||event.clientX>box.right||event.clientY<box.top||event.clientY>box.bottom))dialog.close();
     });
-    for(const [id,target] of [['update-download','download'],['update-release','release']]){
-        document.getElementById(id).onclick=async()=>{
-            const control=document.getElementById(id),message=document.getElementById('update-open-status');
-            control.disabled=true;
-            try{await api('/api/updates/open/'+target,{});message.textContent='기본 웹브라우저에서 열었습니다.';}
-            catch(error){message.textContent=error.message;}
-            finally{control.disabled=false;}
-        };
-    }
+    document.getElementById('update-download').onclick=async()=>{
+        const control=document.getElementById('update-download'),message=document.getElementById('update-open-status');
+        control.disabled=true;
+        message.textContent='최신 릴리즈 페이지를 열고 앱을 종료합니다…';
+        try{await api('/api/updates/open/download',{});}
+        catch(error){message.textContent=error.message;control.disabled=false;}
+    };
+    document.getElementById('update-release').onclick=async()=>{
+        const control=document.getElementById('update-release'),message=document.getElementById('update-open-status');
+        control.disabled=true;
+        try{await api('/api/updates/open/release',{});message.textContent='기본 웹브라우저에서 열었습니다.';}
+        catch(error){message.textContent=error.message;}
+        finally{control.disabled=false;}
+    };
     setTimeout(()=>check(false),1500);
     setInterval(present,2000);
 })();

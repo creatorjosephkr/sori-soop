@@ -31,6 +31,22 @@ def open_external(url):
     else:
         subprocess.run(['open' if system == 'Darwin' else 'xdg-open', url], check=True, timeout=10)
 
+EXIT_HOOK = None
+
+def schedule_exit():
+    if not callable(EXIT_HOOK):
+        return
+    def _exit():
+        time.sleep(0.6)
+        try:
+            EXIT_HOOK()
+        except Exception:
+            os._exit(0)
+            return
+        time.sleep(2.0)
+        os._exit(0)
+    threading.Thread(target=_exit, daemon=True).start()
+
 MODELS = {
     'small-music': {'name': 'Stable Audio 3 Small-Music', 'minSeconds': 10, 'maxSeconds': 120, 'vocals': False, 'mode': 'bgm'},
     'medium': {'name': 'Stable Audio 3 Medium · 고품질', 'minSeconds': 10, 'maxSeconds': 380, 'vocals': False, 'mode': 'bgm'},
@@ -263,11 +279,12 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 result = updates.check()
                 if self.path != '/api/updates/check':
-                    url = result['downloadUrl'] if self.path.endswith('/download') else result['releaseUrl']
-                    if not url or not result['available']:
-                        raise ValueError('다운로드할 새 버전이 없습니다.')
-                    open_external(url)
-                    return self.reply({'ok': True})
+                    if not result.get('available') or not result.get('releaseUrl'):
+                        raise ValueError('새 버전 정보를 확인할 수 없습니다.')
+                    open_external(result['releaseUrl'])
+                    if self.path.endswith('/download'):
+                        schedule_exit()
+                    return self.reply({'ok': True, 'closing': self.path.endswith('/download')})
                 return self.reply(result)
             except Exception:
                 return self.reply({'error': '업데이트 정보를 확인하거나 링크를 열지 못했습니다. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.'}, 503)
@@ -352,6 +369,7 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     import signal
     from local_server import backend_session
+    EXIT_HOOK = lambda: os._exit(0)
     def stop(signum,frame):raise KeyboardInterrupt
     signal.signal(signal.SIGTERM,stop)
     try:
