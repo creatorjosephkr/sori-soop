@@ -94,7 +94,7 @@ main>header{margin-bottom:24px}
 .rename-result,.title-editor-actions button{border:1px solid #bdcbb3;border-radius:6px;background:#fff;color:#46643b;min-height:44px;padding:9px 14px;font-size:16px}.rename-result:disabled{opacity:.5;cursor:default}.result-title-editor{margin:0 0 18px}.result-title-editor[hidden]{display:none}.result-title-editor label{margin-top:0}.result-title-editor input{margin-top:10px}.title-editor-actions{display:flex;gap:10px}.rename-message:empty{display:none}.rename-message{font-size:16px!important}
 
 /* Interface icons use SVG so appearance stays consistent across platforms. */
-.ui-icon{width:22px;height:22px;display:inline-block;vertical-align:middle;flex-shrink:0}.brand>.ui-icon{width:29px;height:29px}.mini-wave{letter-spacing:0}.mini-wave svg{display:block;max-width:100%}.lyric-ai-link span>.ui-icon{width:17px;height:17px}.result-chevron{display:flex;align-items:center}.result-play>span,.player-toggle>span,.player-mute>span{display:inline-flex;align-items:center;justify-content:center}.composer-actions{display:flex;align-items:stretch;gap:12px}.composer-actions .generate{display:flex;align-items:center;justify-content:center;gap:8px;flex:1;min-width:0;width:auto}.new-track{display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid #bdcbb3;border-radius:9px;background:#fff;color:#46643b;min-height:58px;padding:12px 16px;font-size:18px;white-space:nowrap}.new-track:hover{background:#e9f0e3}.new-track:focus-visible{outline:2px solid #668454;outline-offset:3px}@media(max-width:1250px){.composer-actions{flex-wrap:wrap}.composer-actions .generate,.composer-actions .new-track{flex:1 1 150px}}
+.ui-icon{width:22px;height:22px;display:inline-block;vertical-align:middle;flex-shrink:0}.ui-icon-spin{animation:ui-spin 1s linear infinite;flex-shrink:0}@keyframes ui-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.ui-icon-spin{animation:none}}.brand>.ui-icon{width:29px;height:29px}.mini-wave{letter-spacing:0}.mini-wave svg{display:block;max-width:100%}.lyric-ai-link span>.ui-icon{width:17px;height:17px}.result-chevron{display:flex;align-items:center}.result-play>span,.player-toggle>span,.player-mute>span{display:inline-flex;align-items:center;justify-content:center}.composer-actions{display:flex;align-items:stretch;gap:12px}.composer-actions .generate{display:flex;align-items:center;justify-content:center;gap:8px;flex:1;min-width:0;width:auto}.new-track{display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid #bdcbb3;border-radius:9px;background:#fff;color:#46643b;min-height:58px;padding:12px 16px;font-size:18px;white-space:nowrap}.new-track:hover{background:#e9f0e3}.new-track:focus-visible{outline:2px solid #668454;outline-offset:3px}@media(max-width:1250px){.composer-actions{flex-wrap:wrap}.composer-actions .generate,.composer-actions .new-track{flex:1 1 150px}}
 
 /* Sound bars grow into a sprout: the Sorisup identity. */
 aside>.brand{display:flex;align-items:center;justify-content:center;gap:10px;line-height:1.35}aside>.brand>.brand-icon{width:42px;height:42px;filter:drop-shadow(0 2px 3px #294f4012)}
@@ -176,3 +176,94 @@ aside>.brand>.app-version{display:inline-block;font-size:12px;font-weight:500;le
 .sidebar-tip>.save+.save{margin-top:10px}
 .negative-prompt{min-height:86px;font-size:15px;line-height:1.65}
 body:has(.compact-help-dialog[open]),body:has(.lyric-guide-dialog[open]){overflow:hidden}
+
+
+/* K-EXAONE Lyric Generator Dialog & Buttons */
+.lyric-tools-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.lyric-tools-header h3{margin:0}
+.lyric-exaone-button{display:inline-flex;align-items:center;gap:7px;padding:9px 15px;border:1px solid #4a6c3e;border-radius:8px;background:#446438;color:#fff;font-size:15px;font-weight:600;cursor:pointer;transition:background .15s}
+.lyric-exaone-button:hover{background:#35512b}
+.lyric-exaone-button .ui-icon{width:18px;height:18px}
+.lyric-generator-dialog{width:min(940px,calc(100vw - 48px));max-height:calc(100dvh - 48px);overflow-y:auto;padding:28px;border:1px solid #cbd6bf;border-radius:16px;background:#fafcf8;color:#294537;box-shadow:0 24px 80px #17342540}
+.lyric-generator-dialog::backdrop{background:#12271d99;backdrop-filter:blur(5px)}
+.lyric-generator-dialog>p{margin:12px 0 18px;line-height:1.65;font-size:15px;color:#54644e}
+.lyric-gen-api-box{padding:14px 16px;border:1px solid #d4dfcc;border-radius:9px;background:#f3f7ee;margin-bottom:20px}
+.lyric-gen-api-box label{font-size:15px;font-weight:600;color:#354d2e;margin:0}
+.api-key-summary-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.api-key-summary-bar[hidden]{display:none}
+.api-key-summary-info{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:#35522c}
+.api-key-summary-info .ui-icon{width:18px;height:18px;color:#496d3e}
+.api-key-summary-actions{display:inline-flex;align-items:center;gap:12px}
+.api-key-edit-panel{margin-top:0}
+.api-key-edit-panel[hidden]{display:none}
+.api-key-input-row{display:flex;gap:10px;margin-top:8px}
+.api-key-input-row input{flex:1;min-height:44px;padding:8px 12px;border:1px solid #cbd6bf;border-radius:7px;font-size:15px;background:#fff}
+.api-key-input-row .secondary-button{min-height:44px;padding:0 16px;border:1px solid #cbd6bf;border-radius:7px;background:#fff;font-size:14px;font-weight:600;cursor:pointer}
+.api-key-input-row .secondary-button:hover{background:#f3f6ee}
+.api-key-input-row .danger-button{color:#9c3423;border-color:#e0b2a8}
+.api-key-input-row .danger-button:hover{background:#fdf2f0;border-color:#c84c35}
+.api-key-status{font-size:14px;margin:8px 0 0;line-height:1.5}
+.api-key-status.success{color:#35672d;font-weight:600}
+.api-key-status.error{color:#a23c28;font-weight:600}
+.lyric-gen-form label{display:block;font-size:15px;font-weight:600;margin:12px 0 6px;color:#33482d}
+.lyric-gen-form textarea{width:100%;min-height:76px;padding:10px 12px;border:1px solid #cbd6bf;border-radius:8px;font-size:15px;line-height:1.6;font-family:inherit}
+.lyric-gen-options-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.15fr) minmax(0,1.35fr);gap:12px;margin-top:10px}
+.lyric-gen-options-grid select{width:100%;min-height:44px;padding:8px 10px;border:1px solid #cbd6bf;border-radius:7px;background:#fff;font-size:14.5px}
+@media(max-width:820px){.lyric-gen-options-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+@media(max-width:500px){.lyric-gen-options-grid{grid-template-columns:1fr}}
+.lyric-gen-actions{margin-top:20px;display:flex;flex-direction:column;gap:10px}
+.lyric-gen-actions .primary-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:50px;border:1px solid #48693c;border-radius:8px;background:#446438;color:#fff;font-size:17px;font-weight:600;cursor:pointer}
+.lyric-gen-actions .primary-button:hover{background:#35512b}
+.lyric-gen-actions .primary-button:disabled{opacity:.6;cursor:not-allowed}
+.lyric-gen-actions .primary-button.is-loading{font-size:15px;line-height:1.5;padding:10px 16px;background:#38532d;color:#fff;opacity:1!important;cursor:wait}
+.lyric-gen-actions .primary-button.is-loading .ui-icon{animation:ui-spin 1s linear infinite;flex-shrink:0}
+.lyric-gen-actions #lyric-gen-status:empty{display:none}
+.lyric-gen-actions #lyric-gen-status{margin:0;font-size:15px;line-height:1.5}
+.lyric-gen-actions #lyric-gen-status.error{color:#a23c28}
+.lyric-gen-actions #lyric-gen-status.success{color:#35672d;font-weight:600}
+.lyric-gen-result{margin-top:24px;padding-top:20px;border-top:1px solid #dce5d4}
+.lyric-gen-result[hidden]{display:none}
+.lyric-gen-result .result-header{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:14px}
+.lyric-gen-result .result-header h3{margin:0;font-size:18px;color:#31492b;white-space:nowrap}
+.result-summary-tag{font-size:13px;line-height:1.6;padding:4px 10px;border-radius:6px;background:#e5edd9;color:#3b5631;margin:0}
+.result-summary-tag:empty{display:none}
+.lyric-gen-result label{display:block;font-size:14px;font-weight:600;margin:12px 0 5px;color:#45593e}
+.lyric-gen-result input{width:100%;min-height:42px;padding:8px 12px;border:1px solid #cbd6bf;border-radius:7px;font-size:15px;background:#f9fbf7}
+.lyric-gen-result textarea{width:100%;font-size:15px;line-height:1.7;padding:10px 12px;border:1px solid #cbd6bf;border-radius:8px;background:#f9fbf7;font-family:inherit}
+.result-apply-actions{display:flex;gap:10px;margin-top:20px;align-items:stretch}
+.result-apply-actions .save,
+.result-apply-actions .secondary-button{
+  min-height:48px;
+  height:48px;
+  margin:0;
+  box-sizing:border-box;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:8px;
+  font-size:15px;
+  font-weight:600;
+  line-height:1;
+}
+.result-apply-actions .save{flex:1;background:#fff;border:1px solid #48693c;color:#35512b;cursor:pointer}
+.result-apply-actions .save:hover{background:#edf3e5}
+.result-apply-actions .secondary-button{padding:0 24px;border:1px solid #cbd6bf;background:#fff;color:#4f6343;cursor:pointer}
+.result-apply-actions .secondary-button:hover{background:#f3f6ee}
+body:has(.lyric-generator-dialog[open]){overflow:hidden}
+
+
+/* Lyrics header actions and copy button */
+.section-actions{display:flex;align-items:center;gap:10px}
+.section-actions .text-button{display:inline-flex;align-items:center;gap:4px;cursor:pointer}
+.section-actions .text-button .ui-icon{width:14px;height:14px}
+
+.preview-tabs-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 0 8px;border-bottom:1px solid #dce5d4;padding-bottom:6px;flex-wrap:wrap}
+.preview-tabs{display:flex;gap:6px}
+.preview-tab{padding:7px 14px;border:1px solid transparent;border-radius:6px;background:none;font-size:14px;font-weight:600;color:#596d50;cursor:pointer}
+.preview-tab:hover{background:#edf3e5;color:#2f4626}
+.preview-tab.active{background:#446438;color:#fff;border-color:#37542d}
+
+.small-action-button{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid #cbd6bf;border-radius:6px;background:#fff;font-size:13px;font-weight:600;color:#39502f;cursor:pointer}
+.small-action-button:hover{background:#edf4e6;border-color:#728d60}
+.small-action-button .ui-icon{width:16px;height:16px}
+.small-action-button .ui-icon{width:16px;height:16px}

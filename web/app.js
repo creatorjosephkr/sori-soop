@@ -23,8 +23,8 @@ const escapeHTML=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>'
 async function api(url,body){const r=await fetch(url,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});const data=await r.json();if(!r.ok)throw Error(data.error||'요청에 실패했습니다.');return data;}
 function recommendation(){const s=state.system;const low=(s.ramGB||0)<12||(s.availableGB!==null&&s.availableGB<4);return {model:mode==='song'?'ace-step':(mode==='sfx'?'small-sfx':bgmModelChoice),backend:s.appleSilicon?'apple':'cpu',seconds:mode==='sfx'?5:((low||mode==='song')?30:60)};}
 function applyRecommendation(){const r=recommendation();for(const k of ['model','backend'])$(k).value=r[k];const m=state.models[r.model];$('seconds').min=m.minSeconds??10;$('seconds').max=m.maxSeconds;$('seconds').value=durationOverrides[mode]??r.seconds;}
-function render(){if(!state)return;const auto=$('policy').value==='auto';$('backend').disabled=auto;$('model').disabled=auto&&mode!=='bgm';for(const opt of $('model').options){const match=state.models[opt.value]?.mode===mode;opt.hidden=auto&&!match;opt.disabled=auto&&!match;}$('seconds').disabled=false;$('bgm').classList.toggle('selected',mode==='bgm');$('song').classList.toggle('selected',mode==='song');$('sfx').classList.toggle('selected',mode==='sfx');$('lyrics-wrap').hidden=mode!=='song';window.MusicPresets?.setMode(mode);const m=state.models[$('model').value]||state.models['small-music'];const minSec=m.minSeconds??10;$('seconds').min=minSec;$('seconds').max=m.maxSeconds;if(+$('seconds').value<minSec)$('seconds').value=minSec;if(+$('seconds').value>m.maxSeconds)$('seconds').value=m.maxSeconds;renderDurationInput();if($('min'))$('min').textContent=minSec+'초';$('max').textContent='모델 최대 '+m.maxSeconds+'초';const r=recommendation();$('basis').textContent='사양 기반 · 실측 전';const warnings=[];if(!songAutoDuration()&&+$('seconds').value>r.seconds)warnings.push('초기 권장 길이를 초과했습니다. 메모리 부족이나 처리 지연 가능성을 실기기에서 확인해야 합니다.');if(mode==='song'&&!songAutoDuration())warnings.push('가사를 직접 입력하고 짧은 노래부터 시작하세요. '+(state.system.ramGB<12?'8GB급 환경에서는 안정적인 실행을 보장할 수 없습니다.':'30~60초부터 실제 실행 검증이 필요합니다.'));if(mode==='song'&&!songAutoDuration()&&$('lyrics').value.replace(/\[[^\]]*\]/g,'').replace(/\s/g,'').length>+$('seconds').value*4)warnings.push('현재 길이에 비해 가사가 많습니다. 일부 가사가 생략될 수 있으니 자동 길이를 선택하거나 길이를 늘려 주세요.');if(mode==='song'&&!m.vocals)warnings.push('선택한 모델은 가사 기반 노래를 지원하지 않습니다. ACE-Step을 선택하세요.');if(mode!=='song'&&m.mode!==mode)warnings.push(mode==='sfx'?'효과음 만들기에는 Small-SFX 모델을 선택하세요.':'배경음악 만들기에는 Small-Music 또는 Medium 모델을 선택하세요.');if($('backend').value==='apple'&&!state.system.appleSilicon)warnings.push('Apple Silicon이 감지되지 않았습니다. CPU 실행 방식을 선택하세요.');if(state.system.availableGB!==null&&state.system.availableGB<3)warnings.push('가용 메모리가 적습니다. 다른 앱을 종료하고 다시 진단하세요.');const warningHTML=warnings.map(w=>`<div class="warning">${escapeHTML(w)}</div>`).join('');if($('warnings').innerHTML!==warningHTML)$('warnings').innerHTML=warningHTML;$('save').disabled=false;}
-async function refresh(initial=false){try{$('refresh').disabled=true;const next=await api('/api/status');state=next;if(initial){mode=['bgm','song','sfx'].includes(next.settings.mode)?next.settings.mode:'bgm';if(next.settings.model==='medium')bgmModelChoice='medium';$('song-quality').value=next.settings.songQuality==='quality'?'quality':'light';$('song-duration-mode').value=next.settings.durationMode==='auto'?'auto':'manual';$('peak-db').value=next.settings.peakDb??-8;if(Number.isInteger(next.settings.seconds))durationOverrides[mode]=next.settings.seconds;$('policy').value=next.settings.policy;if(next.settings.policy==='auto')applyRecommendation();else for(const k of ['model','backend','seconds']){if(k==='seconds'){const m=next.models[$('model').value]||next.models['small-music'];$('seconds').min=m.minSeconds??10;$('seconds').max=m.maxSeconds;}if(next.settings[k]!==undefined)$(k).value=next.settings[k];}}else if($('policy').value==='auto')applyRecommendation();const s=state.system;const rows=[['시스템',s.os==='Darwin'?'macOS':s.os],['프로세서',s.chip],['전체 메모리',s.ramGB===null?'확인 불가':s.ramGB+' GB'],['현재 가용량 ≈',s.availableGB===null?'확인 불가':s.availableGB+' GB'],['그래픽',s.appleSilicon?'Apple 통합 그래픽':s.gpu.map(g=>g.name+' / '+g.vramGB+' GB').join(', ')||'NVIDIA 미감지 · 기타 GPU 미확인'],['여유 저장 공간',s.diskFreeGB+' GB']];$('system').innerHTML=rows.map(([k,v])=>`<div class="metric"><span>${escapeHTML(k)}</span><b>${escapeHTML(v).replace(/(\d+(?:\.\d+)?) GB/g,'$1&nbsp;GB')}</b></div>`).join('');render();if(!initial)$('message').textContent='진단을 갱신했습니다. 직접 설정과 고정값은 유지됩니다.';}catch(e){$('message').textContent=e.message;}finally{$('refresh').disabled=false;}}
+function render(){if(!state)return;const auto=$('policy').value==='auto';$('backend').disabled=auto;$('model').disabled=auto&&mode!=='bgm';for(const opt of $('model').options){const match=state.models[opt.value]?.mode===mode;opt.hidden=auto&&!match;opt.disabled=auto&&!match;}$('seconds').disabled=false;$('bgm').classList.toggle('selected',mode==='bgm');$('song').classList.toggle('selected',mode==='song');$('sfx').classList.toggle('selected',mode==='sfx');$('lyrics-wrap').hidden=mode!=='song';if($('song-lyric-tools-wrap'))$('song-lyric-tools-wrap').hidden=mode!=='song';window.MusicPresets?.setMode(mode);const m=state.models[$('model').value]||state.models['small-music'];const minSec=m.minSeconds??10;$('seconds').min=minSec;$('seconds').max=m.maxSeconds;if(+$('seconds').value<minSec)$('seconds').value=minSec;if(+$('seconds').value>m.maxSeconds)$('seconds').value=m.maxSeconds;renderDurationInput();if($('min'))$('min').textContent=minSec+'초';$('max').textContent='모델 최대 '+m.maxSeconds+'초';const r=recommendation();$('basis').textContent='사양 기반 · 실측 전';const warnings=[];if(!songAutoDuration()&&+$('seconds').value>r.seconds)warnings.push('초기 권장 길이를 초과했습니다. 메모리 부족이나 처리 지연 가능성을 실기기에서 확인해야 합니다.');if(mode==='song'&&!songAutoDuration())warnings.push('가사를 직접 입력하고 짧은 노래부터 시작하세요. '+(state.system.ramGB<12?'8GB급 환경에서는 안정적인 실행을 보장할 수 없습니다.':'30~60초부터 실제 실행 검증이 필요합니다.'));if(mode==='song'&&!songAutoDuration()&&$('lyrics').value.replace(/\[[^\]]*\]/g,'').replace(/\s/g,'').length>+$('seconds').value*4)warnings.push('현재 길이에 비해 가사가 많습니다. 일부 가사가 생략될 수 있으니 자동 길이를 선택하거나 길이를 늘려 주세요.');if(mode==='song'&&!m.vocals)warnings.push('선택한 모델은 가사 기반 노래를 지원하지 않습니다. ACE-Step을 선택하세요.');if(mode!=='song'&&m.mode!==mode)warnings.push(mode==='sfx'?'효과음 만들기에는 Small-SFX 모델을 선택하세요.':'배경음악 만들기에는 Small-Music 또는 Medium 모델을 선택하세요.');if($('backend').value==='apple'&&!state.system.appleSilicon)warnings.push('Apple Silicon이 감지되지 않았습니다. CPU 실행 방식을 선택하세요.');if(state.system.availableGB!==null&&state.system.availableGB<3)warnings.push('가용 메모리가 적습니다. 다른 앱을 종료하고 다시 진단하세요.');const warningHTML=warnings.map(w=>`<div class="warning">${escapeHTML(w)}</div>`).join('');if($('warnings').innerHTML!==warningHTML)$('warnings').innerHTML=warningHTML;$('save').disabled=false;}
+async function refresh(initial=false){try{$('refresh').disabled=true;const next=await api('/api/status');state=next;if(initial){mode=['bgm','song','sfx'].includes(next.settings.mode)?next.settings.mode:'bgm';if(next.settings.model==='medium')bgmModelChoice='medium';$('song-quality').value=next.settings.songQuality==='quality'?'quality':'light';$('song-duration-mode').value=next.settings.durationMode==='manual'?'manual':'auto';$('peak-db').value=next.settings.peakDb??-8;if(Number.isInteger(next.settings.seconds))durationOverrides[mode]=next.settings.seconds;if(next.settings.exaoneApiKey)$('exaone-api-key').value=next.settings.exaoneApiKey;$('policy').value=next.settings.policy;if(next.settings.policy==='auto')applyRecommendation();else for(const k of ['model','backend','seconds']){if(k==='seconds'){const m=next.models[$('model').value]||next.models['small-music'];$('seconds').min=m.minSeconds??10;$('seconds').max=m.maxSeconds;}if(next.settings[k]!==undefined)$(k).value=next.settings[k];}}else if($('policy').value==='auto')applyRecommendation();const s=state.system;const rows=[['시스템',s.os==='Darwin'?'macOS':s.os],['프로세서',s.chip],['전체 메모리',s.ramGB===null?'확인 불가':s.ramGB+' GB'],['현재 가용량 ≈',s.availableGB===null?'확인 불가':s.availableGB+' GB'],['그래픽',s.appleSilicon?'Apple 통합 그래픽':s.gpu.map(g=>g.name+' / '+g.vramGB+' GB').join(', ')||'NVIDIA 미감지 · 기타 GPU 미확인'],['여유 저장 공간',s.diskFreeGB+' GB']];$('system').innerHTML=rows.map(([k,v])=>`<div class="metric"><span>${escapeHTML(k)}</span><b>${escapeHTML(v).replace(/(\d+(?:\.\d+)?) GB/g,'$1&nbsp;GB')}</b></div>`).join('');render();if(!initial)$('message').textContent='진단을 갱신했습니다. 직접 설정과 고정값은 유지됩니다.';}catch(e){$('message').textContent=e.message;}finally{$('refresh').disabled=false;}}
 for(const id of ['bgm','song','sfx'])$(id).onclick=()=>{if(!state)return;mode=id;dirty=true;sa3InstallError='';if($('policy').value!=='manual')applyRecommendation();render();};
 $('policy').onchange=()=>{if(!state)return;if($('policy').value!=='manual')applyRecommendation();dirty=true;render();};
 $('song-quality').onchange=()=>{dirty=true;qualityInstallError='';render();};
@@ -421,6 +421,202 @@ bindModal('privacy-dialog','open-privacy',['close-privacy','confirm-privacy']);
 bindModal('license-dialog','open-license',['close-license']);
 bindModal('prompt-help-dialog','open-prompt-help',['close-prompt-help','confirm-prompt-help']);
 bindModal('lyric-guide-dialog','open-lyric-guide',['close-lyric-guide','confirm-lyric-guide']);
+
+$('copy-lyrics').onclick=async()=>{
+    const text=$('lyrics').value.trim();
+    const btn=$('copy-lyrics');
+    if(!text){
+        $('lyric-tools-status').className='api-key-status error';
+        $('lyric-tools-status').textContent='복사할 가사가 비어 있습니다.';
+        return;
+    }
+    try{
+        await navigator.clipboard.writeText($('lyrics').value);
+        $('lyric-tools-status').className='api-key-status success';
+        $('lyric-tools-status').textContent='가사를 클립보드에 복사했습니다.';
+        const origHTML=btn.innerHTML;
+        btn.innerHTML=window.StudioIcons('check')+'<span>복사됨!</span>';
+        setTimeout(()=>{btn.innerHTML=origHTML;},2000);
+    }catch(e){
+        $('lyric-tools-status').className='api-key-status error';
+        $('lyric-tools-status').textContent='가사 복사 실패: '+e.message;
+    }
+};
+
+let currentGeneratedLyrics={title:'',stylePrompt:'',g2pLyrics:'',standardLyrics:'',summary:''};
+let activePreviewTab='standard';
+
+function setPreviewTab(type){
+    activePreviewTab=type==='g2p'?'g2p':'standard';
+    const isStandard=activePreviewTab==='standard';
+    $('tab-preview-standard').classList.toggle('active',isStandard);
+    $('tab-preview-g2p').classList.toggle('active',!isStandard);
+    $('lyric-gen-result-lyrics').value=isStandard?(currentGeneratedLyrics.standardLyrics||''):(currentGeneratedLyrics.g2pLyrics||'');
+}
+
+$('tab-preview-standard').onclick=()=>setPreviewTab('standard');
+$('tab-preview-g2p').onclick=()=>setPreviewTab('g2p');
+
+$('btn-copy-preview-lyrics').onclick=async()=>{
+    const text=$('lyric-gen-result-lyrics').value.trim();
+    const btn=$('btn-copy-preview-lyrics');
+    if(!text)return;
+    try{
+        await navigator.clipboard.writeText($('lyric-gen-result-lyrics').value);
+        const orig=btn.innerHTML;
+        btn.innerHTML=window.StudioIcons('check')+'<span>복사됨!</span>';
+        setTimeout(()=>{btn.innerHTML=orig;},2000);
+    }catch(e){}
+};
+
+function updateExaoneKeyUi(isEditing=false){
+    const key=(state?.settings?.exaoneApiKey||'').trim();
+    if(key){
+        $('exaone-key-summary').hidden=false;
+        const masked=key.length>8?(key.slice(0,4)+'••••'+key.slice(-4)):key;
+        $('exaone-key-summary-text').textContent=`EXAONE API 키 등록됨 (${masked})`;
+        $('exaone-api-key').value=key;
+        $('exaone-key-edit-panel').hidden=!isEditing;
+        $('toggle-exaone-key-box').textContent=isEditing?'관리 닫기':'API 키 관리';
+        if(!isEditing){
+            $('exaone-key-status').textContent='';
+            $('exaone-key-status').className='api-key-status';
+        }
+    }else{
+        $('exaone-key-summary').hidden=true;
+        $('exaone-api-key').value='';
+        $('exaone-key-edit-panel').hidden=false;
+        $('exaone-key-status').className='api-key-status';
+        $('exaone-key-status').textContent='가사를 자동 생성하려면 K-EXAONE API 키를 먼저 입력하고 저장해 주세요.';
+    }
+}
+
+$('toggle-exaone-key-box').onclick=()=>{
+    const currentlyHidden=$('exaone-key-edit-panel').hidden;
+    updateExaoneKeyUi(currentlyHidden);
+};
+
+bindModal('lyric-generator-dialog','open-lyric-generator',['close-lyric-gen','close-lyric-gen-after'],()=>{
+    updateExaoneKeyUi(false);
+    $('submit-lyric-gen').classList.remove('is-loading');
+    $('submit-lyric-gen').disabled=false;
+    $('submit-lyric-gen').innerHTML=window.StudioIcons('sparkles')+' <span>가사 및 스타일 생성하기</span>';
+    $('lyric-gen-status').textContent='';
+    $('lyric-gen-status').className='';
+});
+$('save-exaone-key').onclick=async()=>{
+    const key=$('exaone-api-key').value.trim();
+    const status=$('exaone-key-status');
+    const button=$('save-exaone-key');
+    if(!key){status.className='api-key-status error';status.textContent='API 키를 입력해 주세요.';return;}
+    button.disabled=true;status.className='api-key-status';
+    status.innerHTML=window.StudioIcons('spinner','ui-icon-spin')+' API 키 연결 확인 중…';
+    try{
+        await api('/api/lyrics/test',{apiKey:key});
+        const current=state?.settings?{...state.settings}:{policy:'auto',mode:'song'};
+        current.exaoneApiKey=key;
+        const res=await api('/api/settings',current);
+        if(state)state.settings=res.settings;
+        status.className='api-key-status success';status.textContent='API 키가 확인되었으며 안전하게 저장되었습니다.';
+        setTimeout(()=>{updateExaoneKeyUi(false);},700);
+    }catch(e){status.className='api-key-status error';status.textContent=e.message;}
+    finally{button.disabled=false;}
+};
+$('delete-exaone-key').onclick=async()=>{
+    const status=$('exaone-key-status');
+    const button=$('delete-exaone-key');
+    button.disabled=true;
+    try{
+        const current=state?.settings?{...state.settings}:{policy:'auto',mode:'song'};
+        current.exaoneApiKey='';
+        const res=await api('/api/settings',current);
+        if(state)state.settings=res.settings;
+        $('exaone-api-key').value='';
+        updateExaoneKeyUi(true);
+        status.className='api-key-status success';
+        status.textContent='등록된 API 키가 삭제되었습니다.';
+    }catch(e){status.className='api-key-status error';status.textContent='삭제 실패: '+e.message;}
+    finally{button.disabled=false;}
+};
+$('submit-lyric-gen').onclick=async()=>{
+    const prompt=$('lyric-gen-prompt').value.trim();
+    const status=$('lyric-gen-status');
+    const button=$('submit-lyric-gen');
+    const apiKey=$('exaone-api-key').value.trim()||state?.settings?.exaoneApiKey;
+    if(!apiKey){
+        updateExaoneKeyUi(true);
+        status.className='api-key-status error';status.textContent='위 입력창에 EXAONE API 키를 먼저 입력하고 저장해 주세요.';
+        $('exaone-api-key').focus();return;
+    }
+    if(!prompt){
+        status.className='api-key-status error';status.textContent='곡 주제나 이야기를 입력해 주세요.';
+        $('lyric-gen-prompt').focus();return;
+    }
+    button.disabled=true;
+    button.classList.add('is-loading');
+    status.className='';
+    status.textContent='';
+    let elapsed=0;
+    const updateProgress=()=>{
+        button.innerHTML=window.StudioIcons('spinner','ui-icon-spin')+` <span>K-EXAONE 2.5가 가사를 생성하고 있습니다… (${elapsed}초 경과 · 무료 API 대기열 및 생성 중)</span>`;
+    };
+    updateProgress();
+    const timer=setInterval(()=>{elapsed++;updateProgress();},1000);
+    try{
+        const resp=await api('/api/lyrics/generate',{
+            prompt:prompt,
+            genre:$('lyric-gen-genre').value,
+            mood:$('lyric-gen-mood').value,
+            voice:$('lyric-gen-voice').value,
+            tempo:$('lyric-gen-tempo').value,
+            apiKey:apiKey
+        });
+        const data=resp.data;
+        currentGeneratedLyrics={
+            title:data.title||'',
+            stylePrompt:data.stylePrompt||'',
+            g2pLyrics:data.lyrics||'',
+            standardLyrics:data.standardLyrics||data.displayLyrics||data.lyrics||'',
+            summary:data.summary||'ACE-Step 맞춤 가사 완성'
+        };
+        $('lyric-gen-result').hidden=false;
+        $('lyric-gen-result-title').value=currentGeneratedLyrics.title;
+        $('lyric-gen-result-style').value=currentGeneratedLyrics.stylePrompt;
+        $('lyric-gen-result-summary').textContent=currentGeneratedLyrics.summary;
+
+        setPreviewTab('standard');
+
+        status.className='api-key-status success';
+        status.textContent=`가사와 스타일 생성이 완료되었습니다 (${elapsed}초 소요). 아래 미리보기를 확인하고 적용하세요.`;
+    }catch(e){
+        status.className='api-key-status error';
+        status.textContent=e.message;
+    }finally{
+        clearInterval(timer);
+        button.classList.remove('is-loading');
+        button.disabled=false;
+        button.innerHTML=window.StudioIcons('sparkles')+' <span>가사 및 스타일 생성하기</span>';
+    }
+};
+$('apply-lyric-gen').onclick=()=>{
+    const title=$('lyric-gen-result-title').value.trim();
+    const style=$('lyric-gen-result-style').value.trim();
+    const isG2P=(activePreviewTab==='g2p');
+    const chosenLyrics=isG2P?currentGeneratedLyrics.g2pLyrics:currentGeneratedLyrics.standardLyrics;
+
+    if(title&&!$('track-title').value){$('track-title').value=title;}
+    if(chosenLyrics){$('lyrics').value=chosenLyrics;}
+    if(style){$('prompt').value=style;updatePromptCount();}
+    render();
+    $('lyric-generator-dialog').close();
+
+    $('lyric-tools-status').className='api-key-status success';
+    if(isG2P){
+        $('lyric-tools-status').textContent='G2P 발음 가사와 음악 설명이 작업창에 적용되었습니다.';
+    }else{
+        $('lyric-tools-status').textContent='정음(표준 맞춤법) 가사와 음악 설명이 작업창에 적용되었습니다.';
+    }
+};
 $('paypal-sponsor').onclick=async()=>{
     const button=$('paypal-sponsor'),status=$('sponsor-status');
     button.disabled=true;status.textContent='기본 웹브라우저를 열고 있습니다…';

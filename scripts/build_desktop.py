@@ -32,7 +32,7 @@ def main():
     args=[sys.executable,'-m','PyInstaller','--noconfirm','--clean','--onedir','--windowed','--noupx','--name','SoriSoop','--icon',str(icon),'--distpath',str(ROOT/'dist'),'--workpath',str(ROOT/'build/pyinstaller')]
     for name in ('numpy','soundfile','torch','transformers','ctranslate2','sentencepiece','pytest'):
         args+=['--exclude-module',name]
-    resources=['web','runners','app_paths.py','storage.py','model_download.py','song_runtime.py','song_duration.py','song_lyrics.py','audio_processing.py','translation.py','runtime_download.py','setup_engine.py','setup_song.py','setup_song_quality.py','setup_translation.py','setup_bootstrap_check.py','VERSION','LICENSE','THIRD_PARTY_NOTICES.txt']
+    resources=['web','runners','app_paths.py','storage.py','model_download.py','song_runtime.py','song_duration.py','song_lyrics.py','exaone_lyrics.py','audio_processing.py','translation.py','runtime_download.py','setup_engine.py','setup_song.py','setup_song_quality.py','setup_translation.py','setup_bootstrap_check.py','VERSION','LICENSE','THIRD_PARTY_NOTICES.txt']
     resources+=[p.name for p in ROOT.glob('*-version.txt')]
     resources+=[p.name for p in ROOT.glob('requirements-*.lock')]+['requirements-translation.txt']
     for name in resources:args+=['--add-data',str(ROOT/name)+':'+(name if (ROOT/name).is_dir() else '.')]

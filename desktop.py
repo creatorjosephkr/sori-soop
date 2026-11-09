@@ -79,6 +79,38 @@ def window_geometry(screens):
     return width,height,(min(1100,width),min(760,height))
 
 
+def configure_webview_context_menu():
+    try:
+        from webview.platforms import cocoa
+        def patched_willOpenMenu(self, menu, event):
+            if cocoa._state.get('debug'):
+                return
+            # Allow native text editing & clipboard items (Cut, Copy, Paste, Select All, Undo, etc.)
+            # Remove developer inspection and browser navigation items
+            blocked_actions = {'_inspectElement:', 'inspectElement:', 'reload:', 'goBack:', 'goForward:'}
+            for item in list(menu.itemArray()):
+                action = str(item.action() or '')
+                if any(blocked in action for blocked in blocked_actions):
+                    menu.removeItem_(item)
+        cocoa.BrowserView.WebKitHost.willOpenMenu_withEvent_ = patched_willOpenMenu
+    except Exception:
+        pass
+
+    try:
+        from webview.platforms import edgechromium
+        orig_on_webview_ready = edgechromium.EdgeChrome.on_webview_ready
+        def patched_on_webview_ready(self, sender, args):
+            res = orig_on_webview_ready(self, sender, args)
+            try:
+                sender.CoreWebView2.Settings.AreDefaultContextMenusEnabled = True
+            except Exception:
+                pass
+            return res
+        edgechromium.EdgeChrome.on_webview_ready = patched_on_webview_ready
+    except Exception:
+        pass
+
+
 def run(args,root,data):
     import app,engine,installer
     from local_server import backend_session
@@ -114,6 +146,7 @@ def run(args,root,data):
             installer.run('bootstrap-check')
             result={'ok':True,'mode':'first-run-bootstrap','bundledPython':True,'copyBasedVenv':True,'offlinePackageInstall':True,'noManagedLinks':True,'noConsoleWindow':True}
         else:
+            configure_webview_context_menu()
             import webview
             webview.settings['ALLOW_DOWNLOADS']=True
             webview.settings['OPEN_EXTERNAL_LINKS_IN_BROWSER']=True
