@@ -36,7 +36,7 @@
     document.getElementById('update-download').onclick=async()=>{
         const control=document.getElementById('update-download'),message=document.getElementById('update-open-status');
         control.disabled=true;
-        message.textContent='최신 릴리즈 페이지를 열고 앱을 종료합니다…';
+        message.textContent='최신 릴리즈 페이지를 기본 웹브라우저에서 열고 앱을 종료합니다…';
         try{await api('/api/updates/open/download',{});}
         catch(error){message.textContent=error.message;control.disabled=false;}
     };
