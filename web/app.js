@@ -524,6 +524,17 @@ bindModal('lyric-generator-dialog','open-lyric-generator',['close-lyric-gen','cl
     $('lyric-gen-status').textContent='';
     $('lyric-gen-status').className='';
 });
+
+if($('lyric-gen-genre')){
+    $('lyric-gen-genre').addEventListener('change',()=>{
+        const isCustom=$('lyric-gen-genre').value==='__custom__';
+        const customInput=$('lyric-gen-genre-custom');
+        if(customInput){
+            customInput.hidden=!isCustom;
+            if(isCustom)customInput.focus();
+        }
+    });
+}
 $('save-exaone-key').onclick=async()=>{
     const key=$('exaone-api-key').value.trim();
     const status=$('exaone-key-status');
@@ -604,7 +615,7 @@ $('submit-lyric-gen').onclick=async()=>{
     try{
         const resp=await api('/api/lyrics/generate',{
             prompt:prompt,
-            genre:$('lyric-gen-genre').value,
+            genre:($('lyric-gen-genre').value==='__custom__'?($('lyric-gen-genre-custom').value.trim()||'종교음악'):$('lyric-gen-genre').value),
             mood:$('lyric-gen-mood').value,
             voice:$('lyric-gen-voice').value,
             tempo:$('lyric-gen-tempo').value,
