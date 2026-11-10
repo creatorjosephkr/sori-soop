@@ -89,7 +89,14 @@ def diagnose():
         except (OSError, KeyError, ValueError):
             pass
     elif system == 'Windows':
-        os_name = f'Windows {platform.release()}'.strip()
+        rel = platform.release()
+        try:
+            build = int(platform.version().split('.')[2])
+            if build >= 22000:
+                rel = '11'
+        except Exception:
+            pass
+        os_name = f'Windows {rel}'.strip()
         try:
             import ctypes
             class Memory(ctypes.Structure):
@@ -336,13 +343,28 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == '/api/delete':
             try:
                 length = int(self.headers.get('Content-Length', '0'))
-                if not 0 < length <= 1024:
+                if not 0 < length <= 65536:
                     raise ValueError('잘못된 요청 크기입니다.')
                 body = json.loads(self.rfile.read(length))
                 if not isinstance(body, dict):
                     raise ValueError('잘못된 삭제 요청입니다.')
+                ids = body.get('ids')
+                if ids is not None:
+                    if not isinstance(ids, list) or not ids:
+                        raise ValueError('삭제할 항목을 1개 이상 선택하세요.')
+                    deleted_count = 0
+                    errors = []
+                    for ident in ids:
+                        try:
+                            engine.delete_result(ident)
+                            deleted_count += 1
+                        except (FileNotFoundError, ValueError, OSError) as item_err:
+                            errors.append(f'{ident}: {item_err}')
+                    if not deleted_count and errors:
+                        raise ValueError('선택한 항목을 삭제하지 못했습니다: ' + '; '.join(errors[:3]))
+                    return self.reply({'ok': True, 'count': deleted_count, 'errors': errors})
                 engine.delete_result(body.get('id'))
-                return self.reply({'ok': True})
+                return self.reply({'ok': True, 'count': 1})
             except FileNotFoundError as e:
                 return self.reply({'error': str(e)}, 404)
             except (ValueError, TypeError) as e:

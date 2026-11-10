@@ -115,12 +115,14 @@ const statusLabels={queued:'대기 중',running:'생성 중',completed:'완료',
 let jobsSignature='';
 const RESULT_MODES=['bgm','song','sfx'];
 let resultMode=RESULT_MODES.includes(localStorage.getItem('music-result-tab'))?localStorage.getItem('music-result-tab'):'bgm';
-const RESULTS_PER_PAGE=10;
+function getPageSize(mode){return mode==='song'?20:10;}
 const resultPages={bgm:1,song:1,sfx:1};
+const selectedJobIds=new Set();
 let paginationSignature='';
 function selectResultTab(value){
     if(!RESULT_MODES.includes(value))value='bgm';
     resultMode=value;localStorage.setItem('music-result-tab',value);
+    selectedJobIds.clear();
     for(const key of RESULT_MODES){
         const tab=$('results-'+key);
         tab.classList.toggle('selected',key===value);
@@ -128,6 +130,7 @@ function selectResultTab(value){
         tab.tabIndex=key===value?0:-1;
     }
     $('jobs').setAttribute('aria-labelledby','results-'+value);
+    syncBatchSelectionUI();
 }
 for(const key of RESULT_MODES){
     $('results-'+key).onclick=()=>{selectResultTab(key);jobs();};
@@ -142,12 +145,49 @@ for(const key of RESULT_MODES){
 selectResultTab(resultMode);
 const resultSignatures=new Map();
 const expandedResults=new Set();
+function getCurrentPageJobs(){
+    const currentModeJobs=jobHistory.filter(j=>(j.settings.mode||'bgm')===resultMode);
+    const pageSize=getPageSize(resultMode);
+    const page=resultPages[resultMode]||1;
+    return currentModeJobs.slice((page-1)*pageSize,page*pageSize);
+}
+function syncBatchSelectionUI(){
+    const existingIds=new Set(jobHistory.map(j=>j.id));
+    for(const id of selectedJobIds){if(!existingIds.has(id))selectedJobIds.delete(id);}
+    const count=selectedJobIds.size;
+    const countSpan=$('selected-count');
+    if(countSpan)countSpan.textContent=count;
+    const deleteBtn=$('delete-selected-results');
+    if(deleteBtn){
+        deleteBtn.disabled=count===0;
+        deleteBtn.textContent=`선택 삭제 (${count})`;
+    }
+    const pageJobs=getCurrentPageJobs().filter(j=>!['queued','running'].includes(j.status));
+    const pageSelected=pageJobs.filter(j=>selectedJobIds.has(j.id));
+    const selectAllCheckbox=$('select-all-results');
+    if(selectAllCheckbox){
+        if(pageJobs.length>0&&pageSelected.length===pageJobs.length){
+            selectAllCheckbox.checked=true;
+            selectAllCheckbox.indeterminate=false;
+        }else if(pageSelected.length>0){
+            selectAllCheckbox.checked=false;
+            selectAllCheckbox.indeterminate=true;
+        }else{
+            selectAllCheckbox.checked=false;
+            selectAllCheckbox.indeterminate=false;
+        }
+    }
+    for(const cb of document.querySelectorAll('.result-item-checkbox')){
+        cb.checked=selectedJobIds.has(cb.dataset.selectId);
+    }
+}
 function renderResultPage(allItems){
+    const pageSize=getPageSize(resultMode);
     const total=allItems.length;
-    const pages=Math.max(1,Math.ceil(total/RESULTS_PER_PAGE));
+    const pages=Math.max(1,Math.ceil(total/pageSize));
     const page=Math.max(1,Math.min(resultPages[resultMode],pages));
     resultPages[resultMode]=page;
-    const items=allItems.slice((page-1)*RESULTS_PER_PAGE,page*RESULTS_PER_PAGE);
+    const items=allItems.slice((page-1)*pageSize,page*pageSize);
     const signature=JSON.stringify([resultMode,page,items]);
     if(signature!==jobsSignature){jobsSignature=signature;updateResultList(items);}
     $('result-pagination').hidden=total===0;
@@ -161,6 +201,7 @@ function renderResultPage(allItems){
     buttons+=`<button type="button" data-page="${page+1}" ${page===pages?'disabled':''} aria-label="다음 페이지">다음</button>`;
     const pagerSignature=JSON.stringify([resultMode,total,page,pages]);
     if(paginationSignature!==pagerSignature){paginationSignature=pagerSignature;$('pagination-buttons').innerHTML=buttons;}
+    syncBatchSelectionUI();
 }
 $('pagination-buttons').addEventListener('click',event=>{
     const button=event.target.closest('[data-page]');
@@ -173,6 +214,7 @@ $('pagination-buttons').addEventListener('click',event=>{
     $('results').scrollIntoView({block:'start',behavior:'instant'});
 });
 function musicTime(value){const seconds=Math.max(0,Math.floor(Number(value)||0));return String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');}
+function formatDuration(value){const s=Math.max(0,Math.floor(Number(value)||0));return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} (${s}초)`;}
 function durationText(job){if(Number.isFinite(job.durationSeconds))return musicTime(job.durationSeconds);return job.settings.durationMode==='auto'?'자동 · 가사 기준':musicTime(job.settings.seconds);}
 function resultMarkup(job){
     const settings=job.settings;
@@ -188,11 +230,11 @@ function resultMarkup(job){
     if(job.negativePrompt)info.push(['네거티브 프롬프트',job.negativePrompt]);
     if(settings.peakDb!==undefined)info.push(['최대 게인',settings.peakDb+'dB']);
     if(Number.isFinite(job.outputPeakDb))info.push(['실제 피크',job.outputPeakDb.toFixed(1)+'dB']);
-    if(Number.isFinite(job.elapsedSeconds))info.push(['처리 시간',job.elapsedSeconds+'초']);
+    if(Number.isFinite(job.elapsedSeconds))info.push(['처리 시간',formatDuration(job.elapsedSeconds)]);
     if(job.processPeakGB)info.push(['프로세스 최고 메모리',job.processPeakGB+'GB']);
     if(job.enginePeakGB)info.push(['엔진 최고 메모리',job.enginePeakGB+'GB']);
     return `<details id="result-${escapeHTML(job.id)}" data-job-id="${escapeHTML(job.id)}" class="notice result-item result-disclosure ${escapeHTML(job.status)}">
-      <summary class="result-summary">${pending?`<span class="result-loading" role="status" aria-label="${job.status==='queued'?'생성 대기 중':'음악 생성 중'}">${window.StudioIcons('spinner')}</span>`:`<button type="button" class="result-play" data-play="${escapeHTML(job.id)}" aria-label="${job.audioUrl?'재생':'생성 완료 후 재생 가능'}" title="${job.audioUrl?'펼쳐서 재생':'생성 완료 후 재생 가능'}" aria-pressed="false" ${job.audioUrl?'':'disabled'}><span aria-hidden="true">${window.StudioIcons('play')}</span></button>`}<span class="result-summary-main"><span class="result-summary-title">${escapeHTML(title)}</span><span class="result-summary-meta"><span class="result-state ${escapeHTML(job.status)}">${escapeHTML(statusLabels[job.status]||job.status)}</span><span>${escapeHTML(durationText(job))}</span><span>${escapeHTML(date)}</span></span></span><span class="result-chevron" aria-hidden="true">${window.StudioIcons('chevron')}</span></summary>
+      <summary class="result-summary"><label class="result-checkbox-label" onclick="event.stopPropagation()"><input type="checkbox" class="result-item-checkbox" data-select-id="${escapeHTML(job.id)}" aria-label="선택" ${pending?'disabled':''} ${selectedJobIds.has(job.id)?'checked':''}></label>${pending?`<span class="result-loading" role="status" aria-label="${job.status==='queued'?'생성 대기 중':'음악 생성 중'}">${window.StudioIcons('spinner')}</span>`:`<button type="button" class="result-play" data-play="${escapeHTML(job.id)}" aria-label="${job.audioUrl?'재생':'생성 완료 후 재생 가능'}" title="${job.audioUrl?'펼쳐서 재생':'생성 완료 후 재생 가능'}" aria-pressed="false" ${job.audioUrl?'':'disabled'}><span aria-hidden="true">${window.StudioIcons('play')}</span></button>`}<span class="result-summary-main"><span class="result-summary-title">${escapeHTML(title)}</span><span class="result-summary-meta"><span class="result-state ${escapeHTML(job.status)}">${escapeHTML(statusLabels[job.status]||job.status)}</span><span>${escapeHTML(durationText(job))}</span><span>${escapeHTML(date)}</span></span></span><span class="result-chevron" aria-hidden="true">${window.StudioIcons('chevron')}</span></summary>
       <div class="result-body"><p class="playback-message" role="status" aria-live="polite"></p>
         <form class="result-title-editor" hidden><label>제목<input class="track-title" name="title" type="text" maxlength="100" required autocomplete="off"></label><div class="title-editor-actions"><button type="submit">저장</button><button type="button" data-rename-cancel>취소</button></div></form><p class="rename-message" role="status" aria-live="polite"></p>
         ${job.audioUrl?window.AudioSpectrum.markup(escapeHTML(job.audioUrl)):''}
@@ -324,7 +366,7 @@ $('jobs').addEventListener('toggle',event=>{
     if(!item.matches('.result-disclosure')||!item.isConnected)return;
     if(item.open)expandedResults.add(item.dataset.jobId);else expandedResults.delete(item.dataset.jobId);
 },true);
-async function jobs(){try{const data=await api('/api/jobs');jobHistory=data.jobs;activeJob=data.jobs.some(j=>['queued','running'].includes(j.status));const visibleJobs=data.jobs.filter(j=>(j.settings.mode||'bgm')===resultMode);for(const key of RESULT_MODES)$('count-'+key).textContent=data.jobs.filter(j=>(j.settings.mode||'bgm')===key).length;const latest=visibleJobs[0];const running=data.jobs.find(j=>['queued','running'].includes(j.status));const kind=resultMode==='song'?'보컬 노래':(resultMode==='sfx'?'효과음':'배경음악');const runningKind=running?.settings.mode==='song'?'보컬 노래':(running?.settings.mode==='sfx'?'효과음':'배경음악');$('generation-status').textContent=running?`${running.phase||(runningKind+' 생성 중')} · ${Math.max(0,Math.floor(Date.now()/1000-running.createdAt))}초 경과`:latest?`${kind} 최근 작업: ${statusLabels[latest.status]||latest.status} · 총 ${visibleJobs.length}개`:`아직 생성한 ${kind} 결과가 없습니다.`;render();renderResultPage(visibleJobs);}catch(e){$('message').textContent=e.message;}}
+async function jobs(){try{const data=await api('/api/jobs');jobHistory=data.jobs;activeJob=data.jobs.some(j=>['queued','running'].includes(j.status));const visibleJobs=data.jobs.filter(j=>(j.settings.mode||'bgm')===resultMode);for(const key of RESULT_MODES)$('count-'+key).textContent=data.jobs.filter(j=>(j.settings.mode||'bgm')===key).length;const latest=visibleJobs[0];const running=data.jobs.find(j=>['queued','running'].includes(j.status));const kind=resultMode==='song'?'보컬 노래':(resultMode==='sfx'?'효과음':'배경음악');const runningKind=running?.settings.mode==='song'?'보컬 노래':(running?.settings.mode==='sfx'?'효과음':'배경음악');$('generation-status').textContent=running?`${running.phase||(runningKind+' 생성 중')} · ${formatDuration(Date.now()/1000-running.createdAt)} 경과`:latest?`${kind} 최근 작업: ${statusLabels[latest.status]||latest.status} · 총 ${visibleJobs.length}개`:`아직 생성한 ${kind} 결과가 없습니다.`;render();renderResultPage(visibleJobs);}catch(e){$('message').textContent=e.message;}}
 setInterval(jobs,2000);jobs();
 $('new-track').onclick=()=>{resetDraftInputs();$('lyric-tools-status').textContent='';$('lyric-request-fallback').value='';$('lyric-request-fallback').hidden=true;$('message').textContent='새 '+(mode==='song'?'노래':(mode==='sfx'?'효과음':'배경음악'))+'를 만들 준비가 되었습니다.';updatePromptCount();$('track-title').focus();};
 
@@ -343,17 +385,57 @@ resetDraftInputs();
 // Clear browser-restored form values after a fresh load as well.
 window.addEventListener('pageshow',event=>{if(!event.persisted)resetDraftInputs();});
 
+$('jobs').addEventListener('change',event=>{
+    const cb=event.target.closest('.result-item-checkbox');
+    if(!cb)return;
+    const id=cb.dataset.selectId;
+    if(cb.checked)selectedJobIds.add(id);
+    else selectedJobIds.delete(id);
+    syncBatchSelectionUI();
+});
+
+if($('select-all-results'))$('select-all-results').onchange=()=>{
+    const checked=$('select-all-results').checked;
+    const pageJobs=getCurrentPageJobs().filter(j=>!['queued','running'].includes(j.status));
+    for(const job of pageJobs){
+        if(checked)selectedJobIds.add(job.id);
+        else selectedJobIds.delete(job.id);
+    }
+    syncBatchSelectionUI();
+};
+
+if($('delete-selected-results'))$('delete-selected-results').onclick=async()=>{
+    const toDelete=Array.from(selectedJobIds);
+    if(!toDelete.length)return;
+    if(!confirm(`선택한 ${toDelete.length}개의 생성 결과를 삭제하시겠습니까?\n삭제된 파일은 로컬 휴지통에 보관됩니다.`))return;
+    const btn=$('delete-selected-results');
+    btn.disabled=true;btn.textContent='삭제 중…';
+    try{
+        await api('/api/delete',{ids:toDelete});
+        selectedJobIds.clear();
+        await jobs();
+        $('results-notice').textContent=`${toDelete.length}개의 결과를 삭제했습니다. 파일은 로컬 휴지통에 보관됩니다.`;
+    }catch(e){
+        $('results-notice').textContent=e.message;
+    }finally{
+        syncBatchSelectionUI();
+    }
+};
+
 $('jobs').addEventListener('click',async event=>{
     const button=event.target.closest('[data-delete]');
     if(!button||button.disabled)return;
     button.disabled=true;button.textContent='삭제 중…';
     try{
         await api('/api/delete',{id:button.dataset.delete});
+        selectedJobIds.delete(button.dataset.delete);
         await jobs();
         $('results-notice').textContent='결과를 삭제했습니다. 파일은 로컬 휴지통에 보관됩니다.';
     }catch(e){
         $('results-notice').textContent=e.message;
         button.disabled=false;button.textContent='삭제';
+    }finally{
+        syncBatchSelectionUI();
     }
 });
 
@@ -608,7 +690,7 @@ $('submit-lyric-gen').onclick=async()=>{
     let elapsed=0;
     const updateProgress=()=>{
         const limitStr=timeoutVal===0?'대기 제한 없음':`최대 ${timeoutVal}초 대기`;
-        button.innerHTML=window.StudioIcons('spinner','ui-icon-spin')+` <span>K-EXAONE 2.5가 ${langStr} 가사를 생성하고 있습니다… (${elapsed}초 경과 · ${limitStr})</span>`;
+        button.innerHTML=window.StudioIcons('spinner','ui-icon-spin')+` <span>K-EXAONE 2.5가 ${langStr} 가사를 생성하고 있습니다… (${formatDuration(elapsed)} 경과 · ${limitStr})</span>`;
     };
     updateProgress();
     const timer=setInterval(()=>{elapsed++;updateProgress();},1000);

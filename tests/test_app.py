@@ -38,6 +38,28 @@ class SettingsTests(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main()
 
+class DiagnoseTests(unittest.TestCase):
+    def test_windows_11_detection(self):
+        from unittest.mock import patch
+        import app
+        with patch.object(app.platform, 'system', return_value='Windows'), \
+             patch.object(app.platform, 'release', return_value='10'), \
+             patch.object(app.platform, 'version', return_value='10.0.22631'), \
+             patch.object(app, 'command', return_value=''):
+            info = app.diagnose()
+            self.assertEqual(info['os'], 'Windows 11')
+
+    def test_windows_10_detection(self):
+        from unittest.mock import patch
+        import app
+        with patch.object(app.platform, 'system', return_value='Windows'), \
+             patch.object(app.platform, 'release', return_value='10'), \
+             patch.object(app.platform, 'version', return_value='10.0.19045'), \
+             patch.object(app, 'command', return_value=''):
+            info = app.diagnose()
+            self.assertEqual(info['os'], 'Windows 10')
+
+
 class AutoDurationTests(unittest.TestCase):
     def test_auto_keeps_selected_song_duration(self):
         from app import resolve_generation_settings

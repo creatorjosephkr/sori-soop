@@ -142,3 +142,44 @@ class UpdateHttpTests(unittest.TestCase):
             with self.assertRaises(urllib.error.HTTPError) as error:
                 urllib.request.urlopen(urllib.request.Request(self.base+'/api/updates/check',b'{}'))
             self.assertEqual(error.exception.code,503);error.exception.close()
+
+
+class DeleteTests(unittest.TestCase):
+    setUp = HttpTests.setUp
+    tearDown = HttpTests.tearDown
+
+    def test_single_delete(self):
+        import engine
+        with patch.object(engine, 'DATA', Path(self.tmp.name)):
+            ident = 'e' * 32
+            engine.save({'id': ident, 'status': 'completed', 'createdAt': 1})
+            audio = engine.DATA / 'audio'; audio.mkdir(parents=True, exist_ok=True)
+            (audio / (ident + '.wav')).write_bytes(b'sound')
+            request = urllib.request.Request(self.base + '/api/delete', json.dumps({'id': ident}).encode(), {'Content-Type': 'application/json'})
+            with urllib.request.urlopen(request) as response:
+                self.assertEqual(json.load(response), {'ok': True, 'count': 1})
+            self.assertFalse((audio / (ident + '.wav')).exists())
+            self.assertTrue((engine.DATA / 'trash' / ident / (ident + '.wav')).exists())
+
+    def test_batch_delete(self):
+        import engine
+        with patch.object(engine, 'DATA', Path(self.tmp.name)):
+            ids = ['f' * 32, '1' * 32]
+            for i in ids:
+                engine.save({'id': i, 'status': 'completed', 'createdAt': 1})
+                audio = engine.DATA / 'audio'; audio.mkdir(parents=True, exist_ok=True)
+                (audio / (i + '.wav')).write_bytes(b'wav')
+            request = urllib.request.Request(self.base + '/api/delete', json.dumps({'ids': ids}).encode(), {'Content-Type': 'application/json'})
+            with urllib.request.urlopen(request) as response:
+                result = json.load(response)
+                self.assertTrue(result['ok'])
+                self.assertEqual(result['count'], 2)
+            for i in ids:
+                self.assertFalse((engine.DATA / 'audio' / (i + '.wav')).exists())
+                self.assertTrue((engine.DATA / 'trash' / i / (i + '.wav')).exists())
+
+    def test_batch_delete_empty_ids_rejected(self):
+        request = urllib.request.Request(self.base + '/api/delete', json.dumps({'ids': []}).encode(), {'Content-Type': 'application/json'})
+        with self.assertRaises(urllib.error.HTTPError) as err:
+            urllib.request.urlopen(request)
+        self.assertEqual(err.exception.code, 400); err.exception.close()
