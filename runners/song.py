@@ -56,10 +56,21 @@ import torch
 import soundfile as sf
 import numpy as np
 settings=job['settings']
-device='mps' if settings['backend']=='apple' else 'cpu'
+backend=settings.get('backend')
+if backend=='apple':
+    device='mps'
+elif backend=='cpu':
+    device='cpu'
+elif backend=='cuda':
+    device='cuda'
+else:
+    device='cuda' if torch.cuda.is_available() else 'cpu'
 import gc, random
 random.seed(job['seed']); np.random.seed(job['seed']); torch.manual_seed(job['seed'])
-if device == 'mps':
+if device=='cuda':
+    torch.cuda.manual_seed(job['seed'])
+    torch.cuda.manual_seed_all(job['seed'])
+elif device == 'mps':
     import mlx.core as mx
     mx.random.seed(job['seed'])
 plan_path=Path(a.progress.replace('.progress.json','.plan.json'))
@@ -121,6 +132,8 @@ if a.phase!='render':
         planner.unload();del planner;gc.collect()
         if device=='mps':
             mx.clear_cache();torch.mps.empty_cache()
+        elif device=='cuda':
+            torch.cuda.empty_cache()
     metadata=plan.get('metadata') or {}
     validate_plan_controls(metadata)
     duration=planned_seconds(settings,metadata,plan['audio_codes'])
@@ -170,7 +183,7 @@ class LocalSongHandler(AceStepHandler):
         return None
 
     def _init_mlx_vae(self):
-        if job['settings']['backend'] == 'cpu':
+        if device != 'mps':
             return False
         return super()._init_mlx_vae()
 
@@ -213,6 +226,9 @@ write_wav(output,audio,rate,settings.get('peakDb',-8),channels_first=False)
 if sys.platform == 'win32':
     import psutil
     peak = psutil.Process().memory_info().peak_wset
+    if device == 'cuda' and torch.cuda.is_available():
+        vram_peak = torch.cuda.max_memory_allocated() / 1024**3
+        print(f'CUDA peak VRAM {vram_peak:.2f} GB', flush=True)
 else:
     import resource
     peak=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss

@@ -23,6 +23,14 @@ class SettingsTests(unittest.TestCase):
         s = {'policy': 'manual', 'mode': 'song', 'model': 'ace-step', 'backend': 'cpu', 'seconds': 90}
         self.assertEqual(validate(s), s)
 
+    def test_cuda_backend_validation_and_recommendation(self):
+        cuda_song = {'policy': 'manual', 'mode': 'song', 'model': 'ace-step', 'backend': 'cuda', 'seconds': 30}
+        self.assertEqual(validate(cuda_song)['backend'], 'cuda')
+        info = {'ramGB': 16, 'availableGB': 8, 'appleSilicon': False, 'gpu': [{'name': 'NVIDIA GeForce RTX 5050', 'vramGB': 8.0}]}
+        rec = recommend(info, 'song')
+        self.assertEqual(rec['backend'], 'cuda')
+        self.assertIn('NVIDIA GPU', rec['basis'])
+
     def test_medium_bgm_and_sfx_mode_validation(self):
         medium = {'policy': 'manual', 'mode': 'bgm', 'model': 'medium', 'backend': 'apple', 'seconds': 300}
         self.assertEqual(validate(medium)['model'], 'medium')

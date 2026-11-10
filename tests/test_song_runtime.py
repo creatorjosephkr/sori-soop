@@ -17,3 +17,17 @@ class SongRuntimeTests(unittest.TestCase):
             self.assertTrue(song_runtime.ready(root))
             metadata.write_text('Name: '+name+'\nVersion: 0.0.0\n')
             self.assertFalse(song_runtime.ready(root))
+
+    def test_detect_nvidia_gpu_parsing(self):
+        from unittest.mock import patch
+        with patch.object(song_runtime.subprocess, 'check_output', return_value='NVIDIA GeForce RTX 5050 Laptop GPU, 8192, 572.16\n'):
+            gpu = song_runtime.detect_nvidia_gpu()
+            self.assertIsNotNone(gpu)
+            self.assertEqual(gpu['name'], 'NVIDIA GeForce RTX 5050 Laptop GPU')
+            self.assertEqual(gpu['vramGB'], 8.0)
+            self.assertEqual(gpu['driver'], '572.16')
+
+    def test_detect_nvidia_gpu_none_when_command_fails(self):
+        from unittest.mock import patch
+        with patch.object(song_runtime.subprocess, 'check_output', side_effect=OSError('not found')):
+            self.assertIsNone(song_runtime.detect_nvidia_gpu())

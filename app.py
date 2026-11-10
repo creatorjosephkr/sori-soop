@@ -115,7 +115,8 @@ def diagnose():
         except ValueError:
             pass
     apple = system == 'Darwin' and platform.machine() == 'arm64'
-    return {'os': os_name, 'chip': chip, 'appleSilicon': apple, 'cpuCores': os.cpu_count(),
+    has_nvidia = any(g.get('vramGB', 0) >= 5.5 for g in gpu)
+    return {'os': os_name, 'chip': chip, 'appleSilicon': apple, 'cudaEligible': has_nvidia, 'cpuCores': os.cpu_count(),
             'ramGB': round(total / 1024**3, 1) if total else None,
             'availableGB': round(available / 1024**3, 1) if available is not None else None,
             'availableNote': 'OS가 보고한 가용량의 근사치이며 실제 생성 메모리 한도와 다릅니다.',
@@ -125,6 +126,7 @@ def recommend(info, mode='bgm'):
     ram = info.get('ramGB') or 0
     free = info.get('availableGB')
     vram = max((g['vramGB'] for g in info.get('gpu', [])), default=0)
+    has_nvidia = any(g.get('vramGB', 0) >= 5.5 for g in info.get('gpu', []))
     song = mode == 'song'
     sfx = mode == 'sfx'
     model = 'ace-step' if song else ('small-sfx' if sfx else 'small-music')
@@ -133,16 +135,18 @@ def recommend(info, mode='bgm'):
     warnings = []
     if song:
         warnings.append('가사를 직접 입력하세요. 짧은 노래부터 시작하고, 발음과 가사 반영 여부를 들어보세요.')
-        if ram < 12:
+        if ram < 12 and not has_nvidia:
             warnings.append('8GB급 환경에서는 노래 모델의 안정적인 실행을 보장할 수 없습니다.')
-        if not info.get('appleSilicon') and vram < 6:
-            warnings.append('GPU 호환성 확인이 필요합니다. CPU 노래 생성은 속도와 메모리를 별도 검증해야 합니다.')
+        if not info.get('appleSilicon') and not has_nvidia:
+            warnings.append('외장 GPU가 없으면 CPU 모드로 실행되어 노래 생성에 수 분이 소요될 수 있습니다.')
     if free is not None and free < 3:
         warnings.append('현재 가용 메모리가 적습니다. 다른 앱을 종료한 뒤 다시 진단하세요.')
-    return {'model': model, 'backend': 'apple' if info.get('appleSilicon') else 'cpu',
+    backend = 'apple' if info.get('appleSilicon') else ('cuda' if (has_nvidia and song) else 'cpu')
+    basis = '사양 기반 추천' + (' · NVIDIA GPU(CUDA) 가속' if (has_nvidia and song) else (' · Apple Silicon 가속' if info.get('appleSilicon') else ' · CPU 호환'))
+    return {'model': model, 'backend': backend,
             'seconds': seconds, 'recommendedSeconds': seconds, 'batchSize': 1,
-            'basis': '사양 기반의 보수적인 초기값 · 성능 실측 전', 'warnings': warnings,
-            'gpuNote': 'NVIDIA 장치 발견 여부는 실행 라이브러리 호환성을 보장하지 않습니다.',
+            'basis': basis, 'warnings': warnings,
+            'gpuNote': 'NVIDIA GPU 감지 시 고속 CUDA 가속 모드로 구동됩니다.' if has_nvidia else 'NVIDIA 장치 발견 여부는 실행 라이브러리 호환성을 보장하지 않습니다.',
             'estimatedTime': None}
 
 def read_settings():
@@ -172,7 +176,7 @@ def validate(settings):
         min_sec = MODELS[model].get('minSeconds', 10)
         if not auto_length and (type(seconds) is not int or not min_sec <= seconds <= MODELS[model]['maxSeconds']):
             raise ValueError('음악 길이가 모델 지원 범위를 벗어났습니다.')
-        if settings.get('backend') not in ('cpu', 'apple'):
+        if settings.get('backend') not in ('cpu', 'apple', 'cuda'):
             raise ValueError('실행 방식을 확인하세요.')
     if settings['policy'] == 'auto':
         if 'model' in settings:
@@ -245,7 +249,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == '/api/status':
             info = diagnose()
             settings = read_settings()
-            return self.reply({'system': info, 'settings': settings, 'translationReady': translation.ready(), 'recommendation': recommend(info, settings.get('mode', 'bgm')), 'models': MODELS, 'engineReady': engine.ready('apple' if info['appleSilicon'] else 'cpu'), 'engines': {b: engine.ready(b) for b in ('apple', 'cpu')}, 'sa3Models': {b: {m: engine.sa3_model_ready(b, m) for m in ('small-music', 'medium', 'small-sfx')} for b in ('apple', 'cpu')}, 'songEngines': {b: engine.ready(b, 'ace-step') for b in ('apple', 'cpu')}, 'songPlanners':{q:engine.planner_ready(q) for q in ('light','quality')}, 'hasExaoneApiKey': bool(settings.get('exaoneApiKey')), 'exaoneTimeout': settings.get('exaoneTimeout', exaone_lyrics.DEFAULT_REQUEST_TIMEOUT)})
+            return self.reply({'system': info, 'settings': settings, 'translationReady': translation.ready(), 'recommendation': recommend(info, settings.get('mode', 'bgm')), 'models': MODELS, 'engineReady': engine.ready('apple' if info['appleSilicon'] else ('cuda' if info.get('cudaEligible') else 'cpu')), 'engines': {b: engine.ready(b) for b in ('apple', 'cpu', 'cuda')}, 'sa3Models': {b: {m: engine.sa3_model_ready(b, m) for m in ('small-music', 'medium', 'small-sfx')} for b in ('apple', 'cpu', 'cuda')}, 'songEngines': {b: engine.ready(b, 'ace-step') for b in ('apple', 'cpu', 'cuda')}, 'songPlanners':{q:engine.planner_ready(q) for q in ('light','quality')}, 'hasExaoneApiKey': bool(settings.get('exaoneApiKey')), 'exaoneTimeout': settings.get('exaoneTimeout', exaone_lyrics.DEFAULT_REQUEST_TIMEOUT)})
         paths = {'/': 'index.html', '/style.css': 'style.css', '/app.js': 'app.js', '/presets.js': 'presets.js', '/player.js': 'player.js', '/icons.js': 'icons.js', '/setup.js': 'setup.js', '/updates.js': 'updates.js', '/fonts/NotoSansKR-Variable.ttf': 'fonts/NotoSansKR-Variable.ttf', '/icons/sorisup.svg': 'icons/sorisup.svg', '/icons/chatgpt.svg': 'icons/chatgpt.svg', '/icons/claude.ico': 'icons/claude.ico', '/icons/gemini.png': 'icons/gemini.png'}
         paths.update({'/spon/'+name: '../spon/'+name for name in ('spon.svg', 'kakaobank.png', 'paypal.png')})
         if self.path not in paths:
