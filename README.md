@@ -26,7 +26,7 @@
 * 설치방법
   - 현재 배포본은 Developer ID 공증/Authenticode 서명이 없습니다. 운영체제의 출처 확인 안내가 표시될 수 있습니다.
   - Apple Silicon Mac(macOS 14 이상): `macos-arm64.dmg`를 열고 `SoriSoop.app`을 Applications에 복사합니다.
-  - Windows 10(버전 2004 이상)/11 x64: `windows-x64-setup.exe`를 실행하고 설치 위치를 선택합니다. Windows 권한 요청이 나오면 허용해 주세요.
+  - Windows 10(버전 2004 이상)/11 x64: `windows-x64-setup.exe`를 실행하고 설치 위치를 선택합니다. Windows 11에서 "Microsoft에서 확인한 앱이 아닙니다" 알림이 뜨면 [그래도 설치] 또는 Windows 설정(앱 > 고급 앱 설정 > 앱을 설치할 위치 선택)에서 '어디서나'로 변경해 주세요. SmartScreen 창에서는 [추가 정보] → [실행]을 누릅니다.
   - 첫 실행 자동 준비에는 인터넷과 16GB 이상의 여유 공간이 필요합니다.
     
 * 사용 도구 자동 설치

@@ -1,4 +1,4 @@
-﻿[Setup]
+[Setup]
 AppId={{4A755847-D652-467C-98C5-09B655A84A92}
 AppName=소리숲
 AppVersion={#AppVersion}
@@ -27,6 +27,14 @@ ExtraDiskSpaceRequired=1073741824
 CloseApplications=yes
 RestartApplications=no
 SetupLogging=yes
+VersionInfoVersion={#AppVersion}.0
+VersionInfoTextVersion={#AppVersion}
+VersionInfoCompany=크리에이터 요셉
+VersionInfoDescription=소리숲 설치 프로그램
+VersionInfoProductName=소리숲
+VersionInfoProductVersion={#AppVersion}
+VersionInfoCopyright=Copyright © 2026 크리에이터 요셉
+VersionInfoOriginalFileName=SoriSoop-{#AppVersion}-windows-x64-setup.exe
 
 [Languages]
 Name: "korean"; MessagesFile: "compiler:Languages\Korean.isl"

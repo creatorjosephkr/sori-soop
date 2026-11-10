@@ -334,6 +334,81 @@ Count: 가(1) 을(2) 바(3) 람(4) 이(5) too long. Need 6-10 syllables. Shorten
             exaone_lyrics.test_api_key("bad-key")
         self.assertIn("401", str(ctx.exception))
 
+    def test_get_timeout_seconds(self):
+        # Default is 600s
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertEqual(exaone_lyrics.get_timeout_seconds(), 600)
+            self.assertEqual(exaone_lyrics.get_timeout_seconds(300), 300)
+            self.assertEqual(exaone_lyrics.get_timeout_seconds("900"), 900)
+            self.assertIsNone(exaone_lyrics.get_timeout_seconds(0))
+            self.assertIsNone(exaone_lyrics.get_timeout_seconds("0"))
+            self.assertIsNone(exaone_lyrics.get_timeout_seconds("none"))
+            self.assertIsNone(exaone_lyrics.get_timeout_seconds("unlimited"))
+
+        # From environment variable
+        with patch.dict("os.environ", {"EXAONE_TIMEOUT": "0"}):
+            self.assertIsNone(exaone_lyrics.get_timeout_seconds())
+        with patch.dict("os.environ", {"EXAONE_TIMEOUT": "900"}):
+            self.assertEqual(exaone_lyrics.get_timeout_seconds(), 900)
+        with patch.dict("os.environ", {"EXAONE_TIMEOUT": "none"}):
+            self.assertIsNone(exaone_lyrics.get_timeout_seconds())
+
+    @patch("urllib.request.urlopen")
+    def test_execute_chat_completion_timeout_error(self, mock_urlopen):
+        import socket
+        mock_urlopen.side_effect = socket.timeout("timed out")
+        with self.assertRaises(ValueError) as ctx:
+            exaone_lyrics._execute_chat_completion("http://test", {}, "key", 600)
+        self.assertIn("600초", str(ctx.exception))
+        self.assertIn("응답 시간이 초과", str(ctx.exception))
+
+        # When timeout is None (unlimited), message still clearly states timeout occurred without sec
+        with self.assertRaises(ValueError) as ctx:
+            exaone_lyrics._execute_chat_completion("http://test", {}, "key", None)
+        self.assertIn("응답 시간이 초과", str(ctx.exception))
+
+    @patch("urllib.request.urlopen")
+    def test_generate_lyrics_english(self, mock_urlopen):
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps({
+            "choices": [{
+                "message": {
+                    "content": json.dumps({
+                        "title": "Midnight Coffee",
+                        "stylePrompt": "pop, acoustic guitar, female vocal, 105 BPM",
+                        "displayLyrics": "[Verse 1]\nRaindrops falling on the street\nWarm coffee makes me complete",
+                        "lyrics": "[Verse 1]\nRaindrops falling on the street\nWarm coffee makes me complete",
+                        "summary": "비 오는 밤 따뜻한 커피 한 잔의 여유",
+                    })
+                }
+            }]
+        }).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_response
+
+        res = exaone_lyrics.generate_lyrics(
+            api_key="valid-key",
+            prompt="coffee in rainy night",
+            genre="어쿠스틱",
+            language="en",
+        )
+        self.assertEqual(res["title"], "Midnight Coffee")
+        self.assertEqual(res["language"], "en")
+        self.assertTrue(res["lyrics"].startswith("[en]\n"))
+        self.assertIn("Raindrops falling", res["standardLyrics"])
+        self.assertNotIn("[en]", res["standardLyrics"])
+        self.assertEqual(res["stylePrompt"], "pop, acoustic guitar, female vocal, 105 BPM")
+
+    def test_sanitize_lyrics_english(self):
+        raw = "[Verse 1]\nMaybe we were meant to fly\nAcross the open summer sky"
+        sanitized = exaone_lyrics.sanitize_lyrics(raw, language="en")
+        self.assertTrue(sanitized.startswith("[en]\n[Verse 1]"))
+        self.assertIn("Maybe we were meant to fly", sanitized)
+
+    def test_sanitize_title_english(self):
+        leaked = '"Summer Sunset" maybe. DisplayLyrics with structure tags.'
+        clean = exaone_lyrics.sanitize_title(leaked, default_topic="Sunset", language="en")
+        self.assertEqual(clean, "Summer Sunset")
+
 
 class ExaoneHttpTests(unittest.TestCase):
     def setUp(self):
@@ -372,6 +447,37 @@ class ExaoneHttpTests(unittest.TestCase):
             status = json.load(resp)
             self.assertTrue(status.get("hasExaoneApiKey"))
 
+    def test_settings_save_timeout(self):
+        # Save custom timeout (e.g. 0 for unlimited, or 900 for 15min)
+        body = {"policy": "auto", "mode": "song", "exaoneTimeout": 0}
+        req = urllib.request.Request(
+            self.base + "/api/settings",
+            json.dumps(body).encode("utf-8"),
+            {"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as resp:
+            data = json.load(resp)
+            self.assertEqual(data["settings"]["exaoneTimeout"], 0)
+
+        with urllib.request.urlopen(self.base + "/api/status") as resp:
+            status = json.load(resp)
+            self.assertEqual(status.get("exaoneTimeout"), 0)
+
+        # Save 900s
+        body["exaoneTimeout"] = 900
+        req = urllib.request.Request(
+            self.base + "/api/settings",
+            json.dumps(body).encode("utf-8"),
+            {"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as resp:
+            data = json.load(resp)
+            self.assertEqual(data["settings"]["exaoneTimeout"], 900)
+
+        with urllib.request.urlopen(self.base + "/api/status") as resp:
+            status = json.load(resp)
+            self.assertEqual(status.get("exaoneTimeout"), 900)
+
     @patch("exaone_lyrics.generate_lyrics")
     def test_lyrics_generate_endpoint(self, mock_gen):
         mock_gen.return_value = {
@@ -385,6 +491,7 @@ class ExaoneHttpTests(unittest.TestCase):
             "apiKey": "temp-key",
             "prompt": "가을 여행",
             "genre": "발라드",
+            "timeout": 0,
         }
         req = urllib.request.Request(
             self.base + "/api/lyrics/generate",
@@ -395,7 +502,52 @@ class ExaoneHttpTests(unittest.TestCase):
             data = json.load(resp)
             self.assertTrue(data["ok"])
             self.assertEqual(data["data"]["title"], "테스트 곡")
-            mock_gen.assert_called_once()
+            mock_gen.assert_called_once_with(
+                api_key="temp-key",
+                prompt="가을 여행",
+                genre="발라드",
+                mood="",
+                voice="",
+                tempo="",
+                timeout=0,
+                language="ko",
+            )
+
+    @patch("exaone_lyrics.generate_lyrics")
+    def test_lyrics_generate_endpoint_english(self, mock_gen):
+        mock_gen.return_value = {
+            "title": "Autumn Song",
+            "stylePrompt": "pop, 100 BPM",
+            "displayLyrics": "Hello world",
+            "lyrics": "[en]\n[Verse 1]\nHello world",
+            "summary": "영어 가사",
+            "language": "en",
+        }
+        body = {
+            "apiKey": "temp-key",
+            "prompt": "autumn story",
+            "language": "en",
+        }
+        req = urllib.request.Request(
+            self.base + "/api/lyrics/generate",
+            json.dumps(body).encode("utf-8"),
+            {"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req) as resp:
+            data = json.load(resp)
+            self.assertTrue(data["ok"])
+            self.assertEqual(data["data"]["title"], "Autumn Song")
+            self.assertEqual(data["data"]["language"], "en")
+            mock_gen.assert_called_once_with(
+                api_key="temp-key",
+                prompt="autumn story",
+                genre="",
+                mood="",
+                voice="",
+                tempo="",
+                timeout=None,
+                language="en",
+            )
 
 
 if __name__ == "__main__":

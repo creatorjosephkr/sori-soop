@@ -183,8 +183,18 @@ def validate(settings):
         key = settings['exaoneApiKey']
         if key is not None and not isinstance(key, str):
             raise ValueError('API 키 형식이 올바르지 않습니다.')
+    if 'exaoneTimeout' in settings:
+        t = settings['exaoneTimeout']
+        if t is not None:
+            try:
+                t_int = int(t)
+                if t_int < 0:
+                    raise ValueError
+                settings['exaoneTimeout'] = t_int
+            except (ValueError, TypeError):
+                raise ValueError('대기 시간 형식이 올바르지 않습니다.')
     validate_peak_db(settings.get('peakDb', -8))
-    return {k: settings[k] for k in ('policy', 'mode', 'model', 'seconds', 'backend', 'peakDb', 'durationMode', 'songQuality', 'exaoneApiKey') if k in settings}
+    return {k: settings[k] for k in ('policy', 'mode', 'model', 'seconds', 'backend', 'peakDb', 'durationMode', 'songQuality', 'exaoneApiKey', 'exaoneTimeout') if k in settings}
 
 def resolve_generation_settings(settings, info):
     resolved = dict(settings)
@@ -228,7 +238,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path == '/api/status':
             info = diagnose()
             settings = read_settings()
-            return self.reply({'system': info, 'settings': settings, 'translationReady': translation.ready(), 'recommendation': recommend(info, settings.get('mode', 'bgm')), 'models': MODELS, 'engineReady': engine.ready('apple' if info['appleSilicon'] else 'cpu'), 'engines': {b: engine.ready(b) for b in ('apple', 'cpu')}, 'sa3Models': {b: {m: engine.sa3_model_ready(b, m) for m in ('small-music', 'medium', 'small-sfx')} for b in ('apple', 'cpu')}, 'songEngines': {b: engine.ready(b, 'ace-step') for b in ('apple', 'cpu')}, 'songPlanners':{q:engine.planner_ready(q) for q in ('light','quality')}, 'hasExaoneApiKey': bool(settings.get('exaoneApiKey'))})
+            return self.reply({'system': info, 'settings': settings, 'translationReady': translation.ready(), 'recommendation': recommend(info, settings.get('mode', 'bgm')), 'models': MODELS, 'engineReady': engine.ready('apple' if info['appleSilicon'] else 'cpu'), 'engines': {b: engine.ready(b) for b in ('apple', 'cpu')}, 'sa3Models': {b: {m: engine.sa3_model_ready(b, m) for m in ('small-music', 'medium', 'small-sfx')} for b in ('apple', 'cpu')}, 'songEngines': {b: engine.ready(b, 'ace-step') for b in ('apple', 'cpu')}, 'songPlanners':{q:engine.planner_ready(q) for q in ('light','quality')}, 'hasExaoneApiKey': bool(settings.get('exaoneApiKey')), 'exaoneTimeout': settings.get('exaoneTimeout', exaone_lyrics.DEFAULT_REQUEST_TIMEOUT)})
         paths = {'/': 'index.html', '/style.css': 'style.css', '/app.js': 'app.js', '/presets.js': 'presets.js', '/player.js': 'player.js', '/icons.js': 'icons.js', '/setup.js': 'setup.js', '/updates.js': 'updates.js', '/fonts/NotoSansKR-Variable.ttf': 'fonts/NotoSansKR-Variable.ttf', '/icons/sorisup.svg': 'icons/sorisup.svg', '/icons/chatgpt.svg': 'icons/chatgpt.svg', '/icons/claude.ico': 'icons/claude.ico', '/icons/gemini.png': 'icons/gemini.png'}
         paths.update({'/spon/'+name: '../spon/'+name for name in ('spon.svg', 'kakaobank.png', 'paypal.png')})
         if self.path not in paths:
@@ -345,8 +355,15 @@ class Handler(BaseHTTPRequestHandler):
                 if not 0 < length <= 16384: raise ValueError('잘못된 요청 크기입니다.')
                 body = json.loads(self.rfile.read(length))
                 if not isinstance(body, dict): raise ValueError('잘못된 요청 형식입니다.')
-                saved_key = read_settings().get('exaoneApiKey', '')
+                saved_settings = read_settings()
+                saved_key = saved_settings.get('exaoneApiKey', '')
                 api_key = (body.get('apiKey') or saved_key or '').strip()
+                timeout_val = body.get('timeout')
+                if timeout_val is None:
+                    timeout_val = saved_settings.get('exaoneTimeout')
+                language = body.get('language', 'ko')
+                if language not in ('ko', 'en'):
+                    language = 'ko'
                 result = exaone_lyrics.generate_lyrics(
                     api_key=api_key,
                     prompt=body.get('prompt', ''),
@@ -354,6 +371,8 @@ class Handler(BaseHTTPRequestHandler):
                     mood=body.get('mood', ''),
                     voice=body.get('voice', ''),
                     tempo=body.get('tempo', ''),
+                    timeout=timeout_val,
+                    language=language,
                 )
                 return self.reply({'ok': True, 'data': result})
             except (ValueError, TypeError, KeyError) as e:
