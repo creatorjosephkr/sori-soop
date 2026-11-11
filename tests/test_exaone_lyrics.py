@@ -170,6 +170,54 @@ Let's final."""
         self.assertNotIn("Need ensure", clean_disp)
         self.assertNotIn("Let's final", clean_disp)
 
+    def test_sanitize_lyrics_strips_pronunciation_notes_and_expands_same_chorus(self):
+        sample = """[Verse 1]
+기픈 가을 밤
+창가에 내린 별빛
+차가운 바람도
+잠시 쉬어 가네
+
+[Chorus]
+이 밤의 온기로
+너의 곁을 감싸 안아
+느리게 흐르는 시간에
+우리 둘만의 계절
+
+[Verse 2]
+수놓인 하늘 아래
+숨결마저 포근해
+말하지 않아도
+알 것 같은 마음
+
+[Chorus] same.
+
+[Bridge]
+영원히 머물고 싶은
+가을의 끝자락
+별빛이 속삭여
+"괜찮아, 다 잘될 거야"
+Pronunciation: 영원히 [영원히]. 머물고 싶은 [머물고 싶은]. 가을의 [가으레]? Actually 가을의 [가으레] maybe. 끝자락 [끝짜락]. 별빛이 [별비치]. 속삭여 [속싸여]. 괜찮아 [괜차나]. 다 잘될 거야 [다 잘될 거야] or [다 잘될 거야]. "잘될" [잘될].
+
+[Outro]
+깊어가는 가을 밤
+따뜻한 꿈처럼
+조용히 안아 줄게"""
+
+        clean_vocal = exaone_lyrics.sanitize_lyrics(sample)
+        self.assertTrue(clean_vocal.startswith("[ko]\n[Verse 1]"))
+        self.assertIn("[Chorus]\n이 밤의 온기로", clean_vocal)
+        self.assertNotIn("same.", clean_vocal)
+        self.assertNotIn("Pronunciation:", clean_vocal)
+        self.assertNotIn("가으레", clean_vocal)
+        self.assertNotIn("Actually", clean_vocal)
+        self.assertTrue(clean_vocal.endswith("조용히 안아 줄게"))
+
+        clean_disp = exaone_lyrics.sanitize_display_lyrics(sample)
+        self.assertTrue(clean_disp.startswith("[Verse 1]"))
+        self.assertNotIn("same.", clean_disp)
+        self.assertNotIn("Pronunciation:", clean_disp)
+        self.assertTrue(clean_disp.endswith("조용히 안아 줄게"))
+
     @patch("urllib.request.urlopen")
     def test_generate_lyrics_success(self, mock_urlopen):
         mock_response = MagicMock()

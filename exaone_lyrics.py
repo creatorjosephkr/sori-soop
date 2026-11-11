@@ -129,11 +129,75 @@ def is_structure_tag(line):
     s = line.strip()
     return bool(
         re.match(
-            r"^\[(?:ko|en|Intro|Verse(?:\s*\d+)?|Pre-Chorus|Chorus|Bridge|Outro|Hook|Refrain|Interlude)\]",
+            r"^\[(?:ko|en|Intro|Verse(?:\s*\d+)?|Pre-Chorus|Chorus|Bridge|Outro|Hook|Refrain|Interlude)\]$",
             s,
             re.IGNORECASE,
         )
     )
+
+
+def normalize_song_structures(text):
+    """Normalize song structure tags and expand shortcut repeats (e.g. [Chorus] same.)."""
+    if not text:
+        return ""
+    # Expand inline tag with following content: e.g. [Chorus] same. -> [Chorus]\nsame.
+    text = re.sub(
+        r"(\[(?:Intro|Verse(?:\s*\d+)?|Pre-Chorus|Chorus|Bridge|Outro|Hook|Refrain|Interlude)\])\s*([^\s\[\]].*)",
+        r"\1\n\2",
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    lines = text.split("\n")
+    output_lines = []
+    chorus_lines = []
+    current_section = ""
+    current_section_lines = []
+
+    def flush_section():
+        nonlocal current_section, current_section_lines, chorus_lines
+        if not current_section:
+            output_lines.extend(current_section_lines)
+            current_section_lines = []
+            return
+
+        content_stripped = [l.strip() for l in current_section_lines if l.strip()]
+        is_repeat = False
+        if len(content_stripped) == 1:
+            val = content_stripped[0].lower().strip(".()[]")
+            if val in ("same", "same as above", "repeat", "repeat chorus", "ditto", "반복", "후렴 반복", "위와 같음"):
+                is_repeat = True
+
+        if is_repeat and "chorus" in current_section.lower() and chorus_lines:
+            output_lines.append(current_section)
+            output_lines.extend(chorus_lines)
+        else:
+            output_lines.append(current_section)
+            output_lines.extend(current_section_lines)
+            if "chorus" in current_section.lower() and content_stripped and not is_repeat:
+                chorus_lines = list(current_section_lines)
+
+        current_section = ""
+        current_section_lines = []
+
+    for line in lines:
+        stripped = line.strip()
+        m_tag = re.match(
+            r"^(\[(?:Intro|Verse(?:\s*\d+)?|Pre-Chorus|Chorus|Bridge|Outro|Hook|Refrain|Interlude)\])$",
+            stripped,
+            re.IGNORECASE,
+        )
+        if m_tag:
+            flush_section()
+            current_section = m_tag.group(1)
+        else:
+            if current_section:
+                current_section_lines.append(line)
+            else:
+                output_lines.append(line)
+
+    flush_section()
+    return "\n".join(output_lines)
 
 
 def _is_reasoning_line(line, language="ko"):
@@ -148,6 +212,18 @@ def _is_reasoning_line(line, language="ko"):
 
     # Syllable counter patterns: e.g. "Count: ..." or "word(1) word(2)..."
     if re.search(r"\bcount\s*[:：]", s, re.IGNORECASE) or re.search(r"[\uac00-\ud7a3a-zA-Z]\s*\(\d+\)", s):
+        return True
+
+    # Pronunciation / phonetic / translation / notes
+    if re.match(
+        r"^(?:Pronunciation|Pronounce|Phonetics?|G2P|Korean\s*pronunciation|Note|Notes|Meaning|Translation|Commentary)\s*[:：]?",
+        s,
+        re.IGNORECASE,
+    ):
+        return True
+
+    # Bracketed pronunciation notes repeated (e.g. word [pronunciation] word [pronunciation])
+    if len(re.findall(r"\[[\uac00-\ud7a3a-zA-Z\s]+\]", s)) >= 3:
         return True
 
     # Meta reasoning headers / CoT prefixes
@@ -167,6 +243,10 @@ def _is_reasoning_line(line, language="ko"):
 
         eng_chars = len(re.findall(r"[a-zA-Z]", s))
         ko_chars = len(re.findall(r"[\uac00-\ud7a3]", s))
+
+        # Check for English CoT terminology in Korean lyrics
+        if re.search(r"\b(?:Pronunciation|Phonetic|Actually\b|maybe\b)", s, re.IGNORECASE) and eng_chars >= 8:
+            return True
 
         # Song line with English loanwords/phrases (e.g., "Maybe 너를 사랑했나 봐", "우린 너무 오랫동안 (too long) 기다려왔어")
         if ko_chars >= 5 and ko_chars >= eng_chars:
@@ -217,6 +297,7 @@ def extract_pure_lyrics(text, language="ko"):
 
     is_en = str(language).lower() == "en"
     cleaned_text = clean_think_tags(text).strip()
+    cleaned_text = normalize_song_structures(cleaned_text)
 
     # Find the best starting point:
     # Look for [Intro], [Verse 1], or [Verse]
