@@ -62,9 +62,14 @@ if backend=='apple':
 elif backend=='cpu':
     device='cpu'
 elif backend=='cuda':
+    if not torch.cuda.is_available():
+        raise RuntimeError('GPU 가속 실행 환경이 준비되지 않았습니다. NVIDIA 드라이버를 확인하고 노래 엔진 준비를 다시 실행하세요.')
     device='cuda'
 else:
     device='cuda' if torch.cuda.is_available() else 'cpu'
+print(f'[runtime] requested={backend}; device={device}; torch={torch.__version__}; CUDA={torch.version.cuda}',flush=True)
+if device=='cuda':
+    print(f'[runtime] GPU={torch.cuda.get_device_name(0)}; VRAM={torch.cuda.get_device_properties(0).total_memory/1024**3:.1f} GB',flush=True)
 import gc, random
 random.seed(job['seed']); np.random.seed(job['seed']); torch.manual_seed(job['seed'])
 if device=='cuda':

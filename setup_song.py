@@ -24,16 +24,17 @@ else:
     installed_cuda = False
     if use_cuda:
         print(f"NVIDIA GPU 감지: {gpu['name']} ({gpu['vramGB']}GB VRAM)", flush=True)
-        print("초고속 CUDA 가속 패키지를 설치합니다 (약 2.5GB)…", flush=True)
+        print("RTX 50 시리즈를 지원하는 CUDA 12.8 가속 패키지를 설치합니다…", flush=True)
         try:
             subprocess.run([uv_path(), 'pip', 'install', '--python', str(python),
                             'torch', 'torchvision', 'torchaudio',
-                            '--index-url', 'https://download.pytorch.org/whl/cu126'],
+                            '--upgrade',
+                            '--reinstall-package', 'torch', '--reinstall-package', 'torchvision', '--reinstall-package', 'torchaudio',
+                            '--index-url', 'https://download.pytorch.org/whl/cu128'],
                            check=True, **background_options())
             installed_cuda = True
         except Exception as error:
-            print(f"CUDA 패키지 설치 실패 ({error}). 안정적인 CPU 모드로 전환합니다.", flush=True)
-            installed_cuda = False
+            raise RuntimeError("CUDA 패키지 설치에 실패했습니다. 인터넷 연결과 설치 로그를 확인하고 노래 엔진 준비를 다시 실행하세요. CPU로 자동 전환하지 않습니다.") from error
 
     if not installed_cuda:
         print("CPU 호환 모드 패키지를 설치합니다…", flush=True)
@@ -55,23 +56,13 @@ if platform.system() == 'Windows':
     print('노래 실행 패키지와 DLL 호환성을 검사합니다.', flush=True)
     report = repo / '.sorisup-song-runtime-check.json'
     try:
-        subprocess.run([str(python), str(ROOT / 'song_runtime.py'), '--folder', str(repo), '--report', str(report)], check=True, **background_options())
+        subprocess.run([str(python), str(ROOT / 'song_runtime.py'), '--folder', str(repo), '--report', str(report), *(['--require-cuda'] if installed_cuda else [])], check=True, **background_options())
     except Exception as check_err:
         if installed_cuda:
-            print(f'CUDA 실행 검증 실패 ({check_err}). 안전한 CPU 모드로 자동 전환하여 재설치합니다…', flush=True)
-            subprocess.run([uv_path(), 'pip', 'install', '--python', str(python),
-                            *[name + '==' + version for name, version in VERSIONS.items()],
-                            '--reinstall-package', 'torch', '--reinstall-package', 'torchvision', '--reinstall-package', 'torchaudio',
-                            '--index-url', 'https://download.pytorch.org/whl/cpu'],
-                           check=True, **background_options())
-            constraint = ['-c', str(ROOT / 'requirements-song-windows-cpu.lock')]
-            requirements = repo / 'sorisup-cpu-requirements.txt'
-            subprocess.run([uv_path(), 'pip', 'install', '--python', str(python), '-r', str(requirements), *constraint], check=True, **background_options())
-            subprocess.run([str(python), str(ROOT / 'song_runtime.py'), '--folder', str(repo), '--report', str(report)], check=True, **background_options())
-        else:
-            raise
+            raise RuntimeError('GPU 실행 검사에 실패했습니다. NVIDIA 드라이버를 업데이트한 뒤 노래 엔진 준비를 다시 실행하세요. 설치 로그에서 CUDA 오류를 확인할 수 있습니다.') from check_err
+        raise
     report.replace(repo / '.sorisup-song-runtime.json')
-    if not runtime_ready(repo): raise RuntimeError('노래 실행 패키지 검증 기록을 확인하지 못했습니다.')
+    if not runtime_ready(repo, 'cuda' if installed_cuda else 'cpu'): raise RuntimeError('노래 실행 패키지 검증 기록을 확인하지 못했습니다.')
 
 if os.environ.get('LOCAL_MUSIC_SONG_RUNTIME_ONLY') == '1':
     print('노래 실행 패키지 검사 완료 · 모델 다운로드는 생략합니다.', flush=True)

@@ -41,7 +41,7 @@ def sa3_model_ready(backend,model='small-music'):
 def ready(backend, model='small-music'):
     if model == 'ace-step':
         folder, python, script = song_paths()
-        return python.exists() and script.exists() and song_runtime.models_ready(folder) and (platform.system()!='Windows' or song_runtime.ready(folder))
+        return python.exists() and script.exists() and song_runtime.models_ready(folder) and (platform.system()!='Windows' or song_runtime.ready(folder, backend))
     folder, python, script = engine_paths(backend)
     return python.exists() and script.exists()
 

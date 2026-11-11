@@ -205,3 +205,11 @@ Windows의 준비·패키지 설치·모델 다운로드·음악 생성 도구�
 
 <img width="3424" height="4458" alt="Monosnap e8c0a21ef0e0f5101a0d9e590435203ca7bf96af 2026-11-07 18-26-23" src="https://github.com/user-attachments/assets/99e5b522-f935-4095-9961-27ac3f727b08" />
 
+
+### Windows NVIDIA GPU로 노래 생성이 느릴 때
+
+AMD CPU와 NVIDIA GPU를 함께 사용하는 구성도 CUDA 가속 대상입니다. RTX 50 시리즈는 Blackwell을 지원하는 PyTorch CUDA 빌드가 필요하므로 노래 엔진 설치에 `cu128`을 사용합니다. 기존 CPU 설치나 이전 GPU 검사 기록은 GPU 준비 완료로 간주하지 않고, NVIDIA GPU가 감지되면 노래 실행 환경을 다시 준비합니다. 모델 파일과 생성 결과는 유지됩니다.
+
+GPU 패키지 설치·실행 검사에 실패하면 설치 오류를 표시하며 CPU로 자동 전환하지 않습니다. NVIDIA 드라이버를 업데이트하고 앱의 모델 준비를 다시 실행하세요. 준비 로그에 `NVIDIA GPU 가속 확인`이 표시되어야 하며, 이 검사는 GPU 행렬 연산과 동기화까지 수행합니다. 생성 로그의 `[runtime]`에는 실제 실행 장치·PyTorch·CUDA 버전·GPU 이름이 기록됩니다. 직접 설정이나 고정 설정에 CPU가 저장되어 있다면 실행 방식을 `NVIDIA GPU · CUDA 가속`으로 바꾸거나 자동 설정을 선택하세요.
+
+8GB VRAM에서는 메모리 절약을 위해 모델을 CPU와 GPU 사이에 옮기는 처리를 유지합니다. GPU 사용률이 계속 100%일 필요는 없으며 곡 길이·품질 모델·가용 메모리에 따라 소요 시간이 달라집니다. 실제 RTX 5050 노트북에서의 생성 시간은 별도로 측정해야 합니다.

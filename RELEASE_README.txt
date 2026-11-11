@@ -1,10 +1,10 @@
-소리숲 1.2.1
+소리숲 1.2.6
 Copyright © 2026 크리에이터 요셉 (creatorjoseph@kakao.com)
 https://github.com/creatorjosephkr/sori-soop
 
 Mac: DMG를 열고 앱을 설치할 드라이브의 폴더로 SoriSoop.app을 복사한 뒤 실행하세요.
 Apple Silicon / macOS 14 이상을 대상으로 합니다.
-Windows: SoriSoop-1.2.1-windows-x64-setup.exe를 실행하고 화면 안내에 따라 설치하세요.
+Windows: SoriSoop-1.2.6-windows-x64-setup.exe를 실행하고 화면 안내에 따라 설치하세요.
 Windows 10 버전 2004 이상 또는 Windows 11의 x64 PC가 필요합니다.
 Python을 포함한 앱과 바로가기를 설치하고, 필요한 경우 WebView2와 Visual C++ 실행 도구를 함께 설치합니다.
 Windows 권한 요청이 나타나면 허용해 주세요. 폴더 복사나 별도 도구 다운로드는 필요하지 않습니다.
@@ -18,7 +18,9 @@ Python·Git·음악 생성 패키지를 사용자가 따로 설치할 필요가 
 모델 준비에는 인터넷과 16GB 이상의 여유 공간이 필요합니다.
 노래 모델만 약 8GB이며, 인터넷 속도에 따라 준비 시간이 달라집니다.
 모델 준비 후 음악 설명·가사·음원은 내 컴퓨터에서 처리합니다.
-Windows는 CPU 실행 방식입니다. 구형 GPU에 의존하지 않으며 노래 생성은 느릴 수 있습니다.
+Windows 노래 생성은 NVIDIA GPU(VRAM 6GB 이상) 감지 시 CUDA 12.8 실행 환경을 준비합니다.
+GPU 실행 검사에 실패하면 설치 로그에 오류를 표시합니다. NVIDIA 드라이버 업데이트 후 다시 준비하세요.
+NVIDIA GPU가 없거나 CPU 실행 방식을 선택한 경우 노래 생성은 오래 걸릴 수 있습니다.
 
 이 배포본에는 Apple Developer ID 공증 또는 Windows Authenticode 서명이 없습니다.
 운영체제에서 출처 확인 안내가 표시될 수 있습니다.

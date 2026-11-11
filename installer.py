@@ -14,7 +14,7 @@ from app_paths import ROOT,DATA,ENGINE_ROOT,uv_path,bootstrap_python,background_
 LOCK=threading.Lock()
 STATE={'active':False,'component':None,'state':'idle','error':None}
 PROCESS=None
-SETUP_REVISION='windows-song-runtime-v3'
+SETUP_REVISION='windows-song-runtime-v4-cu128'
 BASE_COMPONENTS=('bgm','translation','song')
 OPTIONAL_COMPONENTS=('song-quality','bgm-medium','sfx')
 SCRIPTS={'bgm':'setup_engine.py','translation':'setup_translation.py','song':'setup_song.py','song-quality':'setup_song_quality.py','bgm-medium':'setup_engine.py','sfx':'setup_engine.py'}
@@ -68,11 +68,16 @@ def log_tail(component):
 def status():
     import engine,translation
     backend='apple' if platform.system()=='Darwin' and platform.machine().lower() in ('arm64','aarch64') else 'cpu'
+    song_backend=backend
+    if platform.system()=='Windows':
+        import song_runtime
+        gpu=song_runtime.detect_nvidia_gpu()
+        if gpu and gpu.get('vramGB',0)>=5.5:song_backend='cuda'
     with LOCK:state=dict(STATE)
     if state['state']=='idle' and saved_error():state.update(state='failed',error=saved_error())
     log=log_tail(state.get('component'))
     now=time.time()
-    return {**state,'log':log,'elapsedSeconds':max(0,int(now-state.get('startedAt',now))),'quietSeconds':max(0,int(now-(log['updatedAt'] or state.get('componentStartedAt',now)))),'storage':storage.describe(),'autoSetupEnabled':os.environ.get('LOCAL_MUSIC_AUTO_SETUP')!='0','optionalReady':{'song-quality':engine.planner_ready('quality'),'bgm-medium':bgm_weights_ready(backend,'medium'),'sfx':bgm_weights_ready(backend,'small-sfx')},'ready':{'bgm':engine.ready(backend) and bgm_weights_ready(backend),'translation':translation.ready(),'song':engine.ready(backend,'ace-step')}}
+    return {**state,'log':log,'elapsedSeconds':max(0,int(now-state.get('startedAt',now))),'quietSeconds':max(0,int(now-(log['updatedAt'] or state.get('componentStartedAt',now)))),'storage':storage.describe(),'autoSetupEnabled':os.environ.get('LOCAL_MUSIC_AUTO_SETUP')!='0','optionalReady':{'song-quality':engine.planner_ready('quality'),'bgm-medium':bgm_weights_ready(backend,'medium'),'sfx':bgm_weights_ready(backend,'small-sfx')},'ready':{'bgm':engine.ready(backend) and bgm_weights_ready(backend),'translation':translation.ready(),'song':engine.ready(song_backend,'ace-step')}}
 
 def start(component):
     import engine
