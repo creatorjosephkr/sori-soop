@@ -218,6 +218,52 @@ Pronunciation: 영원히 [영원히]. 머물고 싶은 [머물고 싶은]. 가�
         self.assertNotIn("Pronunciation:", clean_disp)
         self.assertTrue(clean_disp.endswith("조용히 안아 줄게"))
 
+    def test_sanitize_lyrics_selects_most_complete_song_block_over_partial_draft(self):
+        # A full song followed by an unfinished 1-line idea with meta note
+        raw_mixed = """[Verse 1]
+기픈 가을밤 창문 틈으로
+차가운 바람 스며들 때면
+따스한 차 한 잔 손에 쥐고서
+하루의 피로를 내려놓아요
+
+[Chorus]
+포그난 이 밤 우리의 온기
+지친 마음을 감싸 안아주네
+조용한 밤하늘 별빛 아래서
+편안한 쉼을 너에게 줄게
+
+[Verse 2]
+노란 불빛 아래 머무는 시간
+복잡한 생각은 다 지워내고
+작은 숨소리에 귀를 기울여
+이 고요한 평화를 느껴봐요
+
+[Outro]
+잠든 세상 속 따뜻한 온기
+잘 자요 그대 좋은 꿈꿔요
+
+Alternatively:
+[Verse 1]
+창밖에 바람이 조용히 내려앉아
+
+Need title: "가을밤의 온기". Summary: "깊어가는 가을 밤의 따뜻함과 편안함을 청아한 여성 보컬로 풀어낸 감성 발라드".
+"""
+        sanitized = exaone_lyrics.sanitize_lyrics(raw_mixed)
+        self.assertTrue(sanitized.startswith("[ko]\n[Verse 1]"))
+        self.assertIn("포그난 이 밤 우리의 온기", sanitized)
+        self.assertIn("잘 자요 그대 좋은 꿈꿔요", sanitized)
+        self.assertNotIn("Need title", sanitized)
+        self.assertNotIn("Summary:", sanitized)
+
+        # Even if passed just the 1-line fragment, meta note should still be stripped
+        frag = """[Verse 1]
+창밖에 바람이 조용히 내려앉아
+
+Need title: "가을밤의 온기". Summary: "깊어가는 가을 밤의 따뜻함과 편안함을 청아한 여성 보컬로 풀어낸 감성 발라드"."""
+        sanitized_frag = exaone_lyrics.sanitize_lyrics(frag)
+        self.assertNotIn("Need title", sanitized_frag)
+        self.assertNotIn("Summary:", sanitized_frag)
+
     @patch("urllib.request.urlopen")
     def test_generate_lyrics_success(self, mock_urlopen):
         mock_response = MagicMock()

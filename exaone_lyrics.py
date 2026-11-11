@@ -228,7 +228,7 @@ def _is_reasoning_line(line, language="ko"):
 
     # Meta reasoning headers / CoT prefixes
     if re.match(
-        r"^(?:Title|DisplayLyrics|StandardLyrics|Lyrics|Need summary|Ensure JSON|Let\'s draft|Let\'s design|Let\'s compose|Let\'s final|Notes?|Plan|Structure|Style|StylePrompt|Summary|In JSON|Valid JSON|Strict JSON)\b",
+        r"^(?:Title|DisplayLyrics|StandardLyrics|Lyrics|Need|We need|Ensure|Should|Could|Would|How to|Since|However|The instruction|For vocal|Let\'s|Notes?|Plan|Structure|Style|StylePrompt|Summary|In JSON|Valid JSON|Strict JSON|Pronunciation|Pronounce|Phonetics?|G2P|Korean\s*pronunciation|Meaning|Translation|Commentary)\b",
         s,
         re.IGNORECASE,
     ):
@@ -251,10 +251,6 @@ def _is_reasoning_line(line, language="ko"):
         # Song line with English loanwords/phrases (e.g., "Maybe 너를 사랑했나 봐", "우린 너무 오랫동안 (too long) 기다려왔어")
         if ko_chars >= 5 and ko_chars >= eng_chars:
             return False
-
-        # Check if line starts with typical English CoT phrases
-        if re.match(r"^(?:Need\b|We need\b|Ensure\b|Should\b|Could\b|Would\b|How to\b|Since\b|However\b|The instruction\b|For vocal\b|Let\'s\b)", s, re.IGNORECASE):
-            return True
 
         # Check for English CoT keywords
         if (
@@ -305,8 +301,21 @@ def extract_pure_lyrics(text, language="ko"):
     matches = list(re.finditer(start_tag_pattern, cleaned_text, re.IGNORECASE))
 
     if matches:
-        # If model drafted lyrics multiple times, choose the last draft
-        song_candidate = cleaned_text[matches[-1].start():]
+        # Score each candidate block to select the most complete song (avoid selecting a 1-line draft)
+        candidates = []
+        for i, m in enumerate(matches):
+            start = m.start()
+            end = matches[i + 1].start() if i + 1 < len(matches) else len(cleaned_text)
+            block = cleaned_text[start:end]
+            tags = len(re.findall(r"\[(?:Intro|Verse(?:\s*\d+)?|Pre-Chorus|Chorus|Bridge|Outro|Hook|Refrain)\]", block, re.IGNORECASE))
+            char_pat = r"[a-zA-Z]" if is_en else r"[\uac00-\ud7a3]"
+            chars = len(re.findall(char_pat, block))
+            score = tags * 50 + chars
+            candidates.append((score, start))
+
+        candidates.sort(key=lambda x: x[0], reverse=True)
+        best_start = candidates[0][1]
+        song_candidate = cleaned_text[best_start:]
     else:
         # Fallback start patterns: look for any structure tag or [ko]/[en]
         tag_pattern = r"(?m)^\s*\[(?:ko|en|Chorus|Pre-Chorus|Bridge|Verse|Intro)"
@@ -340,7 +349,7 @@ def extract_pure_lyrics(text, language="ko"):
         if has_song_content:
             if in_outro and is_meta:
                 is_termination = True
-            elif re.match(r"^(?:Title|Summary|Style|StylePrompt|Need summary|Ensure JSON|Let\'s final|Here is the JSON|```json)\s*[:：]?", stripped, re.IGNORECASE):
+            elif re.match(r"^(?:Title|Summary|Style|StylePrompt|Need|Ensure|Let\'s final|Here is the JSON|```json)\b", stripped, re.IGNORECASE):
                 is_termination = True
 
         if is_termination:
