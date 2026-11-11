@@ -353,6 +353,65 @@ Count: 가(1) 을(2) 바(3) 람(4) 이(5) too long. Need 6-10 syllables. Shorten
         with patch.dict("os.environ", {"EXAONE_TIMEOUT": "none"}):
             self.assertIsNone(exaone_lyrics.get_timeout_seconds())
 
+    def test_parse_429_error(self):
+        # Busy message
+        body_busy = json.dumps({"error": {"message": "service is busy, too many concurrent requests(600)"}})
+        msg, is_busy = exaone_lyrics._parse_429_error(body_busy)
+        self.assertTrue(is_busy)
+        self.assertIn("동시 요청", msg)
+        self.assertIn("ChatGPT 등 외부 서비스의 활용을 권장", msg)
+
+        # Quota message
+        body_quota = json.dumps({"error": {"message": "insufficient quota or credits"}})
+        msg, is_busy = exaone_lyrics._parse_429_error(body_quota)
+        self.assertFalse(is_busy)
+        self.assertIn("크레딧 또는 사용 한도", msg)
+        self.assertIn("ChatGPT 등 외부 서비스의 활용을 권장", msg)
+
+        # Empty body
+        msg, is_busy = exaone_lyrics._parse_429_error("")
+        self.assertFalse(is_busy)
+        self.assertIn("HTTP 429", msg)
+        self.assertIn("ChatGPT 등 외부 서비스의 활용을 권장", msg)
+
+    @patch("time.sleep", return_value=None)
+    @patch("urllib.request.urlopen")
+    def test_execute_chat_completion_retry_on_429(self, mock_urlopen, mock_sleep):
+        err_body = json.dumps({"error": {"message": "service is busy, too many concurrent requests(600)"}}).encode("utf-8")
+        http_err = urllib.error.HTTPError(
+            url="https://api.exaone.ai",
+            code=429,
+            msg="Too Many Requests",
+            hdrs={},
+            fp=io.BytesIO(err_body),
+        )
+        mock_success = MagicMock()
+        mock_success.__enter__.return_value.read.return_value = json.dumps({"choices": [{"message": {"content": "{}"}}]}).encode("utf-8")
+        mock_urlopen.side_effect = [http_err, mock_success]
+
+        res = exaone_lyrics._execute_chat_completion("http://test", {}, "key", retries=2, retry_delay=0.01)
+        self.assertIn("choices", res)
+        self.assertEqual(mock_sleep.call_count, 1)
+
+    @patch("time.sleep", return_value=None)
+    @patch("urllib.request.urlopen")
+    def test_execute_chat_completion_persistent_429_raises(self, mock_urlopen, mock_sleep):
+        def _make_429(*args, **kwargs):
+            err_body = json.dumps({"error": {"message": "service is busy, too many concurrent requests(600)"}}).encode("utf-8")
+            raise urllib.error.HTTPError(
+                url="https://api.exaone.ai",
+                code=429,
+                msg="Too Many Requests",
+                hdrs={},
+                fp=io.BytesIO(err_body),
+            )
+        mock_urlopen.side_effect = _make_429
+
+        with self.assertRaises(ValueError) as ctx:
+            exaone_lyrics._execute_chat_completion("http://test", {}, "key", retries=2, retry_delay=0.01)
+        self.assertIn("동시 요청이 몰려 혼잡한 상태", str(ctx.exception))
+        self.assertEqual(mock_sleep.call_count, 2)
+
     @patch("urllib.request.urlopen")
     def test_execute_chat_completion_timeout_error(self, mock_urlopen):
         import socket

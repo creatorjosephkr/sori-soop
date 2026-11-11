@@ -591,6 +591,22 @@ if($('lyric-gen-lang')){
         updateLyricPromptPlaceholder();
     };
 }
+const lyricCustomOptions=[
+    {selectId:'lyric-gen-genre',inputId:'lyric-gen-genre-custom',fallback:'종교음악'},
+    {selectId:'lyric-gen-mood',inputId:'lyric-gen-mood-custom',fallback:'따뜻함/편안함'},
+    {selectId:'lyric-gen-voice',inputId:'lyric-gen-voice-custom',fallback:'청아한 여성'},
+    {selectId:'lyric-gen-tempo',inputId:'lyric-gen-tempo-custom',fallback:'적당하고 편안하게 (약 95~110 BPM)'}
+];
+const getLyricOptionValue=(selectId,inputId,fallback)=>{
+    const sel=$(selectId);
+    if(!sel)return '';
+    if(sel.value==='__custom__'){
+        const inp=$(inputId);
+        return(inp&&inp.value.trim())?inp.value.trim():fallback;
+    }
+    return sel.value;
+};
+
 bindModal('lyric-generator-dialog','open-lyric-generator',['close-lyric-gen','close-lyric-gen-after'],()=>{
     updateExaoneKeyUi(false);
     if($('lyric-gen-lang')&&$('language')){
@@ -600,6 +616,13 @@ bindModal('lyric-generator-dialog','open-lyric-generator',['close-lyric-gen','cl
         $('lyric-gen-lang').value=(savedLang||currentMusicLang)==='en'?'en':'ko';
     }
     updateLyricPromptPlaceholder();
+    lyricCustomOptions.forEach(({selectId,inputId})=>{
+        const sel=$(selectId);
+        const inp=$(inputId);
+        if(sel&&inp){
+            inp.hidden=sel.value!=='__custom__';
+        }
+    });
     $('submit-lyric-gen').classList.remove('is-loading');
     $('submit-lyric-gen').disabled=false;
     $('submit-lyric-gen').innerHTML=window.StudioIcons('sparkles')+' <span>가사 및 스타일 생성하기</span>';
@@ -607,16 +630,17 @@ bindModal('lyric-generator-dialog','open-lyric-generator',['close-lyric-gen','cl
     $('lyric-gen-status').className='';
 });
 
-if($('lyric-gen-genre')){
-    $('lyric-gen-genre').addEventListener('change',()=>{
-        const isCustom=$('lyric-gen-genre').value==='__custom__';
-        const customInput=$('lyric-gen-genre-custom');
-        if(customInput){
-            customInput.hidden=!isCustom;
-            if(isCustom)customInput.focus();
-        }
-    });
-}
+lyricCustomOptions.forEach(({selectId,inputId})=>{
+    const sel=$(selectId);
+    const inp=$(inputId);
+    if(sel&&inp){
+        sel.addEventListener('change',()=>{
+            const isCustom=sel.value==='__custom__';
+            inp.hidden=!isCustom;
+            if(isCustom)inp.focus();
+        });
+    }
+});
 $('save-exaone-key').onclick=async()=>{
     const key=$('exaone-api-key').value.trim();
     const status=$('exaone-key-status');
@@ -697,10 +721,10 @@ $('submit-lyric-gen').onclick=async()=>{
     try{
         const resp=await api('/api/lyrics/generate',{
             prompt:prompt,
-            genre:($('lyric-gen-genre').value==='__custom__'?($('lyric-gen-genre-custom').value.trim()||'종교음악'):$('lyric-gen-genre').value),
-            mood:$('lyric-gen-mood').value,
-            voice:$('lyric-gen-voice').value,
-            tempo:$('lyric-gen-tempo').value,
+            genre:getLyricOptionValue('lyric-gen-genre','lyric-gen-genre-custom','종교음악'),
+            mood:getLyricOptionValue('lyric-gen-mood','lyric-gen-mood-custom','따뜻함/편안함'),
+            voice:getLyricOptionValue('lyric-gen-voice','lyric-gen-voice-custom','청아한 여성'),
+            tempo:getLyricOptionValue('lyric-gen-tempo','lyric-gen-tempo-custom','적당하고 편안하게 (약 95~110 BPM)'),
             language:lang,
             apiKey:apiKey,
             timeout:timeoutVal

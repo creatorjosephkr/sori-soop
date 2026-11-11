@@ -209,6 +209,7 @@ body:has(.compact-help-dialog[open]),body:has(.lyric-guide-dialog[open]){overflo
 .lyric-gen-form textarea{width:100%;min-height:76px;padding:10px 12px;border:1px solid #cbd6bf;border-radius:8px;font-size:15px;line-height:1.6;font-family:inherit}
 .lyric-gen-options-grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1.1fr) minmax(0,1.25fr);gap:12px;margin-top:10px}
 .lyric-gen-options-grid select{width:100%;min-height:44px;padding:8px 10px;border:1px solid #cbd6bf;border-radius:7px;background:#fff;font-size:14.5px}
+.lyric-gen-custom-input{margin-top:6px;width:100%;min-height:38px;padding:6px 10px;border:1px solid #cbd6bf;border-radius:7px;background:#fff;font-size:13.5px;box-sizing:border-box}
 @media(max-width:880px){.lyric-gen-options-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
 @media(max-width:500px){.lyric-gen-options-grid{grid-template-columns:1fr}}
 .lyric-gen-timeout-row{margin-top:14px}

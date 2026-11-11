@@ -3,6 +3,7 @@ import json
 import os
 import re
 import socket
+import time
 import urllib.error
 import urllib.request
 
@@ -546,7 +547,37 @@ def parse_json_response(raw_text, language="ko"):
     return fallback_parse_text(cleaned, language=language)
 
 
-def test_api_key(api_key):
+def _parse_429_error(err_body):
+    """Parse EXAONE 429 response body to provide a specific, informative error message."""
+    msg = ""
+    if err_body:
+        try:
+            data = json.loads(err_body)
+            err_obj = data.get("error", {})
+            if isinstance(err_obj, dict):
+                msg = str(err_obj.get("message") or "")
+            elif isinstance(err_obj, str):
+                msg = err_obj
+        except Exception:
+            msg = str(err_body).strip()
+
+    lower_msg = (msg or str(err_body) or "").lower()
+    if "concurrent" in lower_msg or "busy" in lower_msg:
+        return (
+            "EXAONE 서버에 동시 요청이 몰려 혼잡한 상태입니다 (HTTP 429: 동시 접속 한도 초과). 잠시 후 다시 시도하시거나 ChatGPT 등 외부 서비스의 활용을 권장합니다.",
+            True,
+        )
+    if "quota" in lower_msg or "credit" in lower_msg:
+        return (
+            "EXAONE API 크레딧 또는 사용 한도를 초과했습니다 (HTTP 429). EXAONE 콘솔을 확인하시거나 ChatGPT 등 외부 서비스의 활용을 권장합니다.",
+            False,
+        )
+    if msg:
+        return f"EXAONE API 요청 한도를 초과했습니다 (HTTP 429: {msg}). 잠시 후 다시 시도하시거나 ChatGPT 등 외부 서비스의 활용을 권장합니다.", False
+    return "EXAONE API 요청 한도를 초과했습니다 (HTTP 429). 잠시 후 다시 시도하시거나 ChatGPT 등 외부 서비스의 활용을 권장합니다.", False
+
+
+def test_api_key(api_key, retries=1):
     """Verify that the provided EXAONE API key is valid."""
     if not api_key or not isinstance(api_key, str) or not api_key.strip():
         raise ValueError("EXAONE API 키를 입력해 주세요.")
@@ -580,12 +611,22 @@ def test_api_key(api_key):
                 return True
             return True
     except urllib.error.HTTPError as e:
+        err_body = ""
+        try:
+            err_body = e.read().decode("utf-8")
+        except Exception:
+            pass
+
         if e.code in (401, 403):
             raise ValueError("API 키가 올바르지 않거나 인증에 실패했습니다 (HTTP 401/403).")
         if e.code == 404:
             raise ValueError(f"EXAONE 모델({model}) 또는 API 경로를 찾을 수 없습니다 (HTTP 404).")
         if e.code == 429:
-            raise ValueError("API 요청 한도를 초과했습니다 (HTTP 429). 잠시 후 다시 시도해 주세요.")
+            err_msg, is_busy = _parse_429_error(err_body)
+            if retries > 0 and is_busy:
+                time.sleep(1.5)
+                return test_api_key(api_key, retries=retries - 1)
+            raise ValueError(err_msg)
         raise ValueError(f"EXAONE API 서버 오류가 발생했습니다 (HTTP {e.code}).")
     except urllib.error.URLError:
         raise ValueError("EXAONE API 서버에 연결할 수 없습니다. 인터넷 연결을 확인해 주세요.")
@@ -593,8 +634,8 @@ def test_api_key(api_key):
         raise ValueError(f"API 키 확인 중 오류가 발생했습니다: {e}")
 
 
-def _execute_chat_completion(url, payload, api_key, timeout_sec=None):
-    """Execute the HTTP POST request to the EXAONE chat completions endpoint."""
+def _execute_chat_completion(url, payload, api_key, timeout_sec=None, retries=2, retry_delay=2.0):
+    """Execute the HTTP POST request to the EXAONE chat completions endpoint with backoff retry."""
     req = urllib.request.Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
@@ -622,13 +663,34 @@ def _execute_chat_completion(url, payload, api_key, timeout_sec=None):
         if e.code == 400 and "response_format" in payload and "response_format" in err_body.lower():
             retry_payload = dict(payload)
             del retry_payload["response_format"]
-            return _execute_chat_completion(url, retry_payload, api_key, timeout_sec)
+            return _execute_chat_completion(url, retry_payload, api_key, timeout_sec, retries=retries, retry_delay=retry_delay)
 
         if e.code in (401, 403):
             raise ValueError("EXAONE API 키가 올바르지 않거나 권한이 없습니다 (HTTP 401/403).")
         if e.code == 429:
-            raise ValueError("EXAONE API 요청 한도를 초과했습니다 (HTTP 429). 잠시 후 다시 시도해 주세요.")
+            err_msg, is_busy = _parse_429_error(err_body)
+            if retries > 0:
+                time.sleep(retry_delay)
+                return _execute_chat_completion(
+                    url,
+                    payload,
+                    api_key,
+                    timeout_sec,
+                    retries=retries - 1,
+                    retry_delay=retry_delay * 1.5,
+                )
+            raise ValueError(err_msg)
         if e.code >= 500:
+            if retries > 0:
+                time.sleep(retry_delay)
+                return _execute_chat_completion(
+                    url,
+                    payload,
+                    api_key,
+                    timeout_sec,
+                    retries=retries - 1,
+                    retry_delay=retry_delay * 1.5,
+                )
             raise ValueError(f"EXAONE 서버 일시 장애가 발생했습니다 (HTTP {e.code}). 잠시 후 다시 시도해 주세요.")
         raise ValueError(f"EXAONE API 호출 실패 (HTTP {e.code})")
     except (TimeoutError, socket.timeout):
