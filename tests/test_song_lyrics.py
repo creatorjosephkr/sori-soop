@@ -17,6 +17,29 @@ class SongLyricsTests(unittest.TestCase):
                 for field in ('generationLyrics','lyricDirections','generationInputPrompt'):self.assertNotIn(field,job)
             finally:engine.ACTIVE=None;engine.CURRENT=None
 
+    def test_instrumental_ignores_existing_lyrics_and_vocal_language(self):
+        from app import validate
+        settings=validate({'policy':'manual','mode':'song','model':'ace-step','backend':'cpu','seconds':30,'instrumental':True})
+        with tempfile.TemporaryDirectory() as tmp,patch.object(engine,'DATA',Path(tmp)),patch.object(engine,'ready',return_value=True),patch.object(threading.Thread,'start'):
+            try:
+                for lyrics in ('', '기존 보컬 가사'):
+                    job=engine.start(settings,'Soft piano ballad',8,lyrics=lyrics,language='ko')
+                    self.assertEqual(job['lyrics'],'')
+                    self.assertEqual(job['language'],'unknown')
+                    self.assertTrue(job['settings']['instrumental'])
+                    engine.ACTIVE=None
+                with self.assertRaisesRegex(ValueError,'가사'):
+                    engine.start({**settings,'instrumental':False},'Soft piano ballad',8)
+            finally:engine.ACTIVE=None;engine.CURRENT=None
+
+    def test_instrumental_requires_boolean_option_and_manual_duration(self):
+        from app import validate
+        settings={'policy':'manual','mode':'song','model':'ace-step','backend':'cpu','seconds':30,'instrumental':True}
+        with self.assertRaisesRegex(ValueError,'길이'):
+            validate({**settings,'durationMode':'auto','seconds':None})
+        with self.assertRaisesRegex(ValueError,'Instrumental'):
+            validate({**settings,'instrumental':'false'})
+
     def test_translation_does_not_merge_lyrics_or_legacy_arrangement_field(self):
         with tempfile.TemporaryDirectory() as tmp,patch.object(engine,'DATA',Path(tmp)),patch.object(engine.subprocess,'Popen') as launch:
             job={'id':'e'*32,'prompt':'Warm piano','lyrics':'[Intro]\n한글 연주 설명','generationInputPrompt':'Warm piano\n한글 연주 설명','settings':{'mode':'song'}}

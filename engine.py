@@ -83,6 +83,14 @@ def start(settings, prompt, available=None, lyrics='', language='ko', title='', 
         raise ValueError('로컬 한영 번역 모델이 설치되지 않았습니다. setup_translation.py로 설치하거나 음악 설명을 영어로 입력하세요.')
     mode = settings['mode']
     song = mode == 'song'
+    instrumental = song and settings.get('instrumental', False)
+    if type(instrumental) is not bool:
+        raise ValueError('Instrumental 옵션을 확인하세요.')
+    if instrumental:
+        if song_duration.automatic(settings):
+            raise ValueError('연주곡은 길이를 직접 지정해 주세요.')
+        lyrics = ''
+        language = 'unknown'
     if song and settings['model'] != 'ace-step':
         raise ValueError('배경음악에는 Small-Music, 보컬 노래에는 ACE-Step을 선택하세요.')
     if mode == 'bgm' and settings['model'] not in ('small-music', 'medium'):
@@ -100,7 +108,7 @@ def start(settings, prompt, available=None, lyrics='', language='ko', title='', 
             minimum=4 if settings['backend']=='apple' else 8
             if available is not None and available<minimum:raise ValueError(f'품질 모델을 위해 가용 메모리 {minimum}GB 이상을 확보하거나 가벼운 모델을 선택해 주세요.')
         song_duration.explicit_bpm(prompt)
-        if not isinstance(lyrics, str) or not lyrics.strip() or len(lyrics) > 4000:
+        if not instrumental and (not isinstance(lyrics, str) or not lyrics.strip() or len(lyrics) > 4000):
             raise ValueError('노래 가사를 1~4000자로 입력하세요.')
         if language not in ('ko', 'en', 'ja', 'zh', 'unknown'):
             raise ValueError('지원하는 보컬 언어를 선택하세요.')
@@ -353,3 +361,56 @@ def delete_result(ident):
                 target.replace(source)
             trash.rmdir()
             raise
+
+
+def _trash_entries():
+    root = DATA / 'trash'
+    if not root.exists() or root.is_symlink():
+        return []
+    entries = []
+    for folder in root.iterdir():
+        if folder.is_symlink() or not folder.is_dir() or not re.fullmatch(r'[a-f0-9]{32}', folder.name):
+            continue
+        record = folder / (folder.name + '.json')
+        try:
+            job = json.loads(record.read_text(encoding='utf-8')) if not record.is_symlink() else {}
+            if not isinstance(job, dict):job = {}
+        except (OSError, ValueError):
+            job = {}
+        settings = job.get('settings') if isinstance(job.get('settings'), dict) else {}
+        mode = settings.get('mode', 'bgm') if job else 'unknown'
+        kind = ('instrumental' if settings.get('instrumental') else 'song') if mode == 'song' else mode
+        files = [path for path in folder.rglob('*') if not path.is_symlink() and path.is_file()]
+        entries.append({'id': folder.name, 'title': str(job.get('title') or job.get('prompt') or '제목 없는 결과'),
+                        'kind': kind, 'deletedAt': folder.stat().st_mtime,
+                        'bytes': sum(path.stat().st_size for path in files)})
+    return sorted(entries, key=lambda item:item['deletedAt'], reverse=True)
+
+
+def trash_history():
+    with GUARD:
+        return _trash_entries()
+
+
+def empty_trash(ids):
+    """Permanently remove only the archived entries confirmed by the caller."""
+    import shutil
+    if not isinstance(ids, list) or not ids or len(ids) > 10000 or any(not isinstance(ident, str) or not re.fullmatch(r'[a-f0-9]{32}', ident) for ident in ids):
+        raise ValueError('비울 휴지통 항목을 확인하세요.')
+    with GUARD:
+        root = DATA / 'trash'
+        if root.is_symlink():raise ValueError('휴지통 경로를 확인하세요.')
+        count = 0
+        errors = []
+        for ident in dict.fromkeys(ids):
+            target = root / ident
+            if target.is_symlink():
+                errors.append(ident)
+                continue
+            if not target.exists():continue
+            try:
+                shutil.rmtree(target)
+                count += 1
+            except OSError:
+                errors.append(ident)
+        return {'ok': not errors, 'count': count, 'errors': errors}

@@ -21,6 +21,18 @@ class HttpTests(unittest.TestCase):
         headers={'Content-Type':'application/json'}
         if origin:headers['Origin']=origin
         return urllib.request.urlopen(urllib.request.Request(self.base+'/api/settings',json.dumps(body).encode(),headers))
+    def test_all_page_scripts_are_served(self):
+        import re
+        with urllib.request.urlopen(self.base+'/') as response:
+            page=response.read().decode()
+        scripts=re.findall(r'<script src="([^"]+)"',page)
+        self.assertIn('/generation-options.js',scripts)
+        for source in scripts:
+            with self.subTest(source=source),urllib.request.urlopen(self.base+source) as response:
+                self.assertEqual(response.status,200)
+                self.assertIn('javascript',response.headers['Content-Type'])
+                self.assertTrue(response.read())
+
     def test_settings_roundtrip(self):
         settings={'policy':'fixed','mode':'bgm','model':'small-music','seconds':40,'backend':'cpu'}
         with self.post(settings) as r:self.assertEqual(json.load(r)['settings'],settings)

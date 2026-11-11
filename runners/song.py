@@ -32,7 +32,11 @@ a=p.parse_args()
 job=json.loads(Path(a.request).read_text(encoding='utf-8'))
 caption=job.get('generationPrompt',job['prompt'])
 negative_prompt=(job.get('generationNegativePrompt') or job.get('negativePrompt') or '').strip() or 'NO USER INPUT'
-lyrics=job['lyrics']
+instrumental=job['settings'].get('instrumental', False)
+lyrics='[Instrumental]' if instrumental else job['lyrics']
+if instrumental:
+    job['language']='unknown'
+    caption += ', instrumental, no vocals'
 tempo_caption=job['prompt']
 requested_bpm=explicit_bpm(tempo_caption)
 if requested_bpm is None:
@@ -112,7 +116,7 @@ def validate_planned_caption(metadata, duration):
     return validate_caption(tokenizer,text)
 
 if a.phase!='render':
-    stage('가사에 맞는 곡 구성과 길이를 정하고 있습니다' if automatic(settings) else '가사에 맞는 곡 구성을 준비하고 있습니다')
+    stage('연주곡 구성을 준비하고 있습니다' if instrumental else ('가사에 맞는 곡 구성과 길이를 정하고 있습니다' if automatic(settings) else '가사에 맞는 곡 구성을 준비하고 있습니다'))
     from transformers import AutoTokenizer
     tokenizer=AutoTokenizer.from_pretrained(str(REPO/'checkpoints/Qwen3-Embedding-0.6B'),local_files_only=True)
     from acestep.core.generation.handler.prompt_utils import PromptMixin
@@ -129,7 +133,7 @@ if a.phase!='render':
     try:
         plan=planner.generate_with_stop_condition(caption=caption,lyrics=lyrics,
             infer_type='llm_dit',**plan_options(settings,tempo_caption,job['language']),use_cot_caption=False,
-            use_cot_language=True,use_cot_metas=True,temperature=0.85,cfg_scale=2.0,top_p=0.9,
+            use_cot_language=not instrumental,use_cot_metas=True,temperature=0.85,cfg_scale=2.0,top_p=0.9,
             negative_prompt=negative_prompt,batch_size=1,seeds=[job['seed']])
         if not plan.get('success') or not plan.get('audio_codes'):
             raise RuntimeError(plan.get('error') or '곡 구성을 생성하지 못했습니다.')
@@ -209,9 +213,9 @@ message,ok=handler.initialize_service(project_root=str(REPO),config_path='aceste
     compile_model=False,quantization=None,use_flash_attention=False,use_mlx_dit=False)
 if not ok:
     raise RuntimeError(message)
-stage('가사와 음악 설명으로 노래를 생성하고 있습니다')
-params=GenerationParams(caption=caption,lyrics=lyrics,instrumental=False,
-    vocal_language=job['language'] if job['language']!='unknown' else metadata.get('language','unknown'),duration=duration,seed=job['seed'],
+stage('가사 없는 연주곡을 생성하고 있습니다' if instrumental else '가사와 음악 설명으로 노래를 생성하고 있습니다')
+params=GenerationParams(caption=caption,lyrics=lyrics,instrumental=instrumental,
+    vocal_language='unknown' if instrumental else (job['language'] if job['language']!='unknown' else metadata.get('language','unknown')),duration=duration,seed=job['seed'],
     audio_codes=plan['audio_codes'],bpm=metadata.get('bpm'),keyscale=metadata.get('keyscale',''),
     timesignature=str(metadata.get('timesignature','')),lm_negative_prompt=negative_prompt,
     inference_steps=8,shift=3.0,thinking=False,use_cot_metas=False,use_cot_caption=False,

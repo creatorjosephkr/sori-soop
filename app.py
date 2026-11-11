@@ -160,6 +160,10 @@ def validate(settings):
     settings=dict(settings)
     if settings.get('policy') not in ('auto', 'fixed', 'manual') or settings.get('mode') not in ('bgm', 'song', 'sfx'):
         raise ValueError('설정 방식 또는 제작 모드를 확인하세요.')
+    if type(settings.get('instrumental', False)) is not bool:
+        raise ValueError('Instrumental 옵션을 확인하세요.')
+    if settings.get('instrumental') and settings.get('mode') == 'song' and settings.get('durationMode') == 'auto':
+        raise ValueError('연주곡은 길이를 직접 지정해 주세요.')
     duration_mode=settings.get('durationMode','manual')
     if duration_mode not in ('manual','auto') or (duration_mode=='auto' and settings['mode']!='song'):
         raise ValueError('자동 길이는 노래 만들기에서만 사용할 수 있습니다.')
@@ -206,7 +210,7 @@ def validate(settings):
             except (ValueError, TypeError):
                 raise ValueError('대기 시간 형식이 올바르지 않습니다.')
     validate_peak_db(settings.get('peakDb', -8))
-    return {k: settings[k] for k in ('policy', 'mode', 'model', 'seconds', 'backend', 'peakDb', 'durationMode', 'songQuality', 'exaoneApiKey', 'exaoneTimeout') if k in settings}
+    return {k: settings[k] for k in ('policy', 'mode', 'model', 'seconds', 'backend', 'peakDb', 'durationMode', 'songQuality', 'instrumental', 'exaoneApiKey', 'exaoneTimeout') if k in settings}
 
 def resolve_generation_settings(settings, info):
     resolved = dict(settings)
@@ -237,6 +241,9 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(self.server.studio_session)
         if self.path == '/api/setup':
             return self.reply(installer.status())
+        if self.path == '/api/trash':
+            try:return self.reply({'items': engine.trash_history()})
+            except OSError:return self.reply({'error': '휴지통 목록을 읽을 수 없습니다.'}, 500)
         if self.path == '/api/jobs':
             return self.reply({'jobs': engine.history()})
         if self.path.startswith('/audio/'):
@@ -260,7 +267,7 @@ class Handler(BaseHTTPRequestHandler):
             info = diagnose()
             settings = read_settings()
             return self.reply({'system': info, 'settings': settings, 'translationReady': translation.ready(), 'recommendation': recommend(info, settings.get('mode', 'bgm')), 'models': MODELS, 'engineReady': engine.ready('apple' if info['appleSilicon'] else ('cuda' if info.get('cudaEligible') else 'cpu')), 'engines': {b: engine.ready(b) for b in ('apple', 'cpu', 'cuda')}, 'sa3Models': {b: {m: engine.sa3_model_ready(b, m) for m in ('small-music', 'medium', 'small-sfx')} for b in ('apple', 'cpu', 'cuda')}, 'songEngines': {b: engine.ready(b, 'ace-step') for b in ('apple', 'cpu', 'cuda')}, 'songPlanners':{q:engine.planner_ready(q) for q in ('light','quality')}, 'hasExaoneApiKey': bool(settings.get('exaoneApiKey')), 'exaoneTimeout': settings.get('exaoneTimeout', exaone_lyrics.DEFAULT_REQUEST_TIMEOUT)})
-        paths = {'/': 'index.html', '/style.css': 'style.css', '/app.js': 'app.js', '/presets.js': 'presets.js', '/player.js': 'player.js', '/icons.js': 'icons.js', '/setup.js': 'setup.js', '/updates.js': 'updates.js', '/fonts/NotoSansKR-Variable.ttf': 'fonts/NotoSansKR-Variable.ttf', '/icons/sorisup.svg': 'icons/sorisup.svg', '/icons/chatgpt.svg': 'icons/chatgpt.svg', '/icons/claude.ico': 'icons/claude.ico', '/icons/gemini.png': 'icons/gemini.png'}
+        paths = {'/': 'index.html', '/style.css': 'style.css', '/app.js': 'app.js', '/generation-options.js': 'generation-options.js', '/presets.js': 'presets.js', '/player.js': 'player.js', '/icons.js': 'icons.js', '/setup.js': 'setup.js', '/updates.js': 'updates.js', '/fonts/NotoSansKR-Variable.ttf': 'fonts/NotoSansKR-Variable.ttf', '/icons/sorisup.svg': 'icons/sorisup.svg', '/icons/chatgpt.svg': 'icons/chatgpt.svg', '/icons/claude.ico': 'icons/claude.ico', '/icons/gemini.png': 'icons/gemini.png'}
         paths.update({'/spon/'+name: '../spon/'+name for name in ('spon.svg', 'kakaobank.png', 'paypal.png')})
         if self.path not in paths:
             return self.reply({'error': '찾을 수 없습니다.'}, 404)
@@ -354,6 +361,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply({'error': str(e)}, 400)
             except OSError:
                 return self.reply({'error': '제목을 저장할 수 없습니다. 다시 시도해 주세요.'}, 500)
+        if self.path == '/api/trash/empty':
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 400000:raise ValueError('잘못된 요청 크기입니다.')
+                body = json.loads(self.rfile.read(length))
+                if not isinstance(body, dict):raise ValueError('잘못된 휴지통 비우기 요청입니다.')
+                return self.reply(engine.empty_trash(body.get('ids')))
+            except (ValueError, TypeError) as error:
+                return self.reply({'error': str(error)}, 400)
+            except OSError:
+                return self.reply({'error': '휴지통을 비울 수 없습니다. 파일 접근 권한을 확인하세요.'}, 500)
         if self.path == '/api/delete':
             try:
                 length = int(self.headers.get('Content-Length', '0'))

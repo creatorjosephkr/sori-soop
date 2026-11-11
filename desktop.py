@@ -129,7 +129,7 @@ def run(args,root,data):
         if args.self_test:
             from app_paths import ROOT,uv_path,ENGINE_ROOT,background_options
             import subprocess
-            for endpoint in ['/','/style.css','/app.js','/setup.js','/icons/sorisup.svg','/fonts/NotoSansKR-Variable.ttf','/spon/spon.svg']:
+            for endpoint in ['/','/style.css','/app.js','/generation-options.js','/setup.js','/icons/sorisup.svg','/fonts/NotoSansKR-Variable.ttf','/spon/spon.svg']:
                 with urllib.request.urlopen(url+endpoint) as response:assert response.status==200
             assert (ROOT/'setup_song_quality.py').is_file()
             status=json.load(urllib.request.urlopen(url+'/api/setup'))
@@ -170,7 +170,7 @@ def run(args,root,data):
                 def check():
                     try:
                         for _ in range(120):
-                            if window.evaluate_js("!!document.getElementById('prompt') && typeof state !== 'undefined' && !!state && !!document.getElementById('setup-retry') && !!document.getElementById('setup-steps')"):
+                            if window.evaluate_js("!!document.getElementById('prompt') && typeof state !== 'undefined' && !!state && !!document.getElementById('setup-retry') && !!document.getElementById('setup-steps') && !!window.GenerationOptions && typeof window.GenerationOptions.render === 'function' && document.querySelectorAll('#negative-options input[type=checkbox]').length > 0"):
                                 result.update(ok=True,mode='native-webview',version=window.evaluate_js("document.querySelector('.app-version').textContent"),portCollisionHandled=int(url.rsplit(':',1)[1])!=preferred);break
                             time.sleep(.5)
                     except Exception as error:result.update(error=str(error))

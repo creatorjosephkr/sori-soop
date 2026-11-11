@@ -143,6 +143,12 @@
         Object.keys(selected).forEach(key=>selected[key]='');compose(true);
     };
     window.MusicPresets={
+        snapshot(){return {selected:{...selected},appliedBlock,currentMode};},
+        restore(saved,mode){
+            Object.keys(selected).forEach(key=>selected[key]=saved?.selected?.[key]||'');
+            appliedBlock=saved?.appliedBlock||'';currentMode=saved?.currentMode||mode;
+            refreshFields();updateStatus();
+        },
         setMode(mode){if(mode===currentMode)return;currentMode=mode;compose(true);},
         reset(){appliedBlock='';Object.keys(selected).forEach(key=>selected[key]='');refreshFields();updateStatus();}
     };
