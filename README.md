@@ -15,7 +15,8 @@
 * **지원 시스템**: Windows 10/11, 맥OS(애플 실리콘 칩 M 시리즈 지원)
 * **로컬 인공지능 도구**: AceStep-1.5, Stable Audio 3 (Small-Music, Medium, Small-SFX)
 
-<img width="3424" height="2384" alt="image" src="https://github.com/user-attachments/assets/589d554e-5b4e-4a73-9f38-d3c719100d93" />
+<img width="3424" height="2384" alt="image" src="https://github.com/user-attachments/assets/7856db79-6be6-4ca8-ac71-e8d1555f6628" />
+
 
 
 # 다운로드 및 실행
