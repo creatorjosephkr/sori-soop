@@ -137,7 +137,20 @@ def run(args,root,data):
             assert ENGINE_ROOT==data/'engines'
             subprocess.run([uv_path(),'--version'],check=True,**background_options())
             assert int(url.rsplit(':',1)[1])!=preferred
-            result={'ok':True,'mode':'packaged-server','resources':True,'firstRunReady':True,'uv':True,'portCollisionHandled':int(url.rsplit(':',1)[1])!=preferred}
+            # Exercise the bundled native MP3 encoder through the real download route.
+            import wave
+            ident='0'*32
+            engine.save({'id':ident,'status':'completed','createdAt':time.time()})
+            audio=data/'audio';audio.mkdir(exist_ok=True)
+            with wave.open(str(audio/(ident+'.wav')),'wb') as sample:
+                sample.setnchannels(2);sample.setsampwidth(2);sample.setframerate(48000)
+                sample.writeframes(bytes(4800*4))
+            with urllib.request.urlopen(url+'/audio/'+ident+'.mp3') as response:
+                assert response.headers['Content-Type']=='audio/mpeg'
+                encoded=response.read()
+                assert len(encoded)>100 and encoded[0]==255 and encoded[1]&224==224
+            engine.delete_result(ident)
+            result={'ok':True,'mode':'packaged-server','resources':True,'mp3Export':True,'firstRunReady':True,'uv':True,'portCollisionHandled':int(url.rsplit(':',1)[1])!=preferred}
         elif args.generation_test:
             from generation_console_check import check
             result=check(data)

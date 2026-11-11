@@ -310,6 +310,25 @@ def rename_result(ident, title):
         save(job)
         return job
 
+def export_mp3(ident):
+    if not isinstance(ident, str) or not re.fullmatch(r'[a-f0-9]{32}', ident):
+        raise ValueError('잘못된 생성 결과 ID입니다.')
+    # Serialize exports and deletion so no partial or orphaned cache is published.
+    with GUARD:
+        record = DATA / 'jobs' / (ident + '.json')
+        source = DATA / 'audio' / (ident + '.wav')
+        target = source.with_suffix('.mp3')
+        if not record.is_file() or not source.is_file():
+            raise FileNotFoundError('이미 삭제되었거나 존재하지 않는 결과입니다.')
+        job = json.loads(record.read_text(encoding='utf-8'))
+        if job.get('status') != 'completed' or ident == ACTIVE:
+            raise ValueError('생성이 완료된 결과만 MP3로 다운로드할 수 있습니다.')
+        if not target.is_file() or target.stat().st_mtime_ns < source.stat().st_mtime_ns or not target.stat().st_size:
+            from audio_export import write_mp3
+            write_mp3(source, target)
+        return target
+
+
 def delete_result(ident):
     """Remove a result from the library, retaining its files in local trash."""
     if not isinstance(ident, str) or not re.fullmatch(r'[a-f0-9]{32}', ident):
@@ -324,7 +343,7 @@ def delete_result(ident):
         trash.mkdir(parents=True, exist_ok=False)
         moved = []
         try:
-            for source in [DATA / 'audio' / (ident + '.wav'), DATA / 'jobs' / (ident + '.log'), DATA / 'jobs' / (ident + '.progress.json'), DATA / 'jobs' / (ident + '.plan.json'), DATA / 'jobs' / (ident + '.translation.json'), DATA / 'jobs' / (ident + '.translation.log'), record]:
+            for source in [DATA / 'audio' / (ident + '.wav'), DATA / 'audio' / (ident + '.mp3'), DATA / 'jobs' / (ident + '.log'), DATA / 'jobs' / (ident + '.progress.json'), DATA / 'jobs' / (ident + '.plan.json'), DATA / 'jobs' / (ident + '.translation.json'), DATA / 'jobs' / (ident + '.translation.log'), record]:
                 if source.exists():
                     target = trash / source.name
                     source.replace(target)

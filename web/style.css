@@ -283,3 +283,5 @@ body:has(.lyric-generator-dialog[open]){overflow:hidden}
 .delete-selected-button:disabled{opacity:.4;cursor:default;border-color:#d4dcce;color:#899781}
 .result-checkbox-label{display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:6px;margin-right:2px;flex-shrink:0}
 
+
+.download-mp3[aria-disabled="true"]{opacity:.65;cursor:progress}.download-message{font-size:14px;color:#526b44}.download-message:empty{display:none}

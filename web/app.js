@@ -244,7 +244,7 @@ function resultMarkup(job){
         ${job.generationPrompt?`<details class="result-translation"><summary>생성에 사용한 영어 설명</summary><p>${escapeHTML(job.generationPrompt)}</p></details>`:''}
         ${job.lyrics?`<section class="saved-lyrics"><h3>가사${language?' · '+escapeHTML(language):''}</h3><pre>${escapeHTML(job.lyrics)}</pre></section>`:''}
         <details class="result-technical"><summary>생성 설정 및 처리 정보</summary><dl>${info.map(([key,value])=>`<div><dt>${escapeHTML(key)}</dt><dd>${escapeHTML(value)}</dd></div>`).join('')}</dl></details>
-        <div class="result-actions"><button type="button" class="rename-result" data-rename ${['running','queued'].includes(job.status)?'disabled':''}>제목 수정</button>${job.audioUrl?`<a class="download-result" href="${escapeHTML(job.audioUrl)}" download="${escapeHTML(filename)}.wav">WAV 다운로드</a>`:''}<button class="delete-result" data-delete="${escapeHTML(job.id)}" ${['running','queued'].includes(job.status)?'disabled':''}>삭제</button></div>
+        <div class="result-actions"><button type="button" class="rename-result" data-rename ${['running','queued'].includes(job.status)?'disabled':''}>제목 수정</button>${job.audioUrl?`<a class="download-result" href="${escapeHTML(job.audioUrl)}" download="${escapeHTML(filename)}.wav">WAV 다운로드</a><a class="download-result download-mp3" href="/audio/${escapeHTML(job.id)}.mp3" download="${escapeHTML(filename)}.mp3" aria-label="MP3 다운로드 · 320kbps">MP3 다운로드</a>`:''}<button class="delete-result" data-delete="${escapeHTML(job.id)}" ${['running','queued'].includes(job.status)?'disabled':''}>삭제</button></div><p class="download-message" role="status" aria-live="polite"></p>
       </div>
     </details>`;
 }
@@ -267,8 +267,10 @@ function updateResultList(items){
             // A title change must retain the existing audio element and playback position.
             const template=document.createElement('template');template.innerHTML=resultMarkup(job).trim();
             node.querySelector('.result-summary-title').textContent=template.content.querySelector('.result-summary-title').textContent;
-            const link=node.querySelector('.download-result');
-            if(link)link.download=template.content.querySelector('.download-result').download;
+            for(const link of node.querySelectorAll('.download-result')){
+                const selector=link.classList.contains('download-mp3')?'.download-mp3':'.download-result';
+                link.download=template.content.querySelector(selector).download;
+            }
             resultSignatures.set(id,signature);
         }
         if(!node||resultSignatures.get(id)!==signature){
@@ -306,6 +308,28 @@ $('jobs').addEventListener('click',event=>{
     const job=jobHistory.find(job=>job.id===card.dataset.jobId);
     form.elements.title.value=(job.title??job.prompt??'').slice(0,100);
     form.hidden=false;form.elements.title.focus();form.elements.title.select();
+});
+$('jobs').addEventListener('click',async event=>{
+    const link=event.target.closest('.download-mp3');
+    if(!link)return;
+    event.preventDefault();
+    if(link.getAttribute('aria-disabled')==='true')return;
+    const card=link.closest('.result-disclosure'),message=card.querySelector('.download-message');
+    link.setAttribute('aria-disabled','true');link.setAttribute('aria-busy','true');
+    link.textContent='MP3 준비 중…';message.textContent='MP3 파일을 준비하고 있습니다. 처음에는 변환에 잠시 시간이 걸릴 수 있습니다.';
+    try{
+        const response=await fetch(link.href);
+        if(!response.ok){
+            const detail=await response.json().catch(()=>({}));
+            throw new Error(detail.error||'MP3 다운로드에 실패했습니다. 다시 시도해 주세요.');
+        }
+        // Use an HTTP download so native app save dialogs receive the filename too.
+        if(response.body)await response.body.cancel();
+        const download=document.createElement('a');download.href=link.href;download.download=link.download;
+        document.body.append(download);download.click();download.remove();
+        message.textContent='MP3 다운로드를 시작했습니다.';
+    }catch(error){message.textContent=error.message;}
+    finally{link.removeAttribute('aria-disabled');link.removeAttribute('aria-busy');link.textContent='MP3 다운로드';}
 });
 $('jobs').addEventListener('keydown',event=>{
     if(event.key==='Escape'&&event.target.closest('.result-title-editor')){

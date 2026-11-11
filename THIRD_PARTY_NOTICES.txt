@@ -26,6 +26,8 @@ pywebview: BSD 3-Clause. https://github.com/r0x0r/pywebview
 uv: MIT or Apache-2.0. https://github.com/astral-sh/uv
 PyInstaller: GPL-2.0-or-later with bootloader exception.
 https://pyinstaller.org/en/stable/license.html
+lameenc: LGPL-3.0-or-later. https://github.com/chrisstaite/lameenc
+LAME MP3 encoder: LGPL-2.0-or-later. https://lame.sourceforge.io/
 certifi: MPL-2.0. https://github.com/certifi/python-certifi
 
 Model weights are not included in the desktop download. The user explicitly

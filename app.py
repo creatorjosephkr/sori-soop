@@ -5,6 +5,7 @@ import exaone_lyrics
 import installer
 import updates
 import song_duration
+import wave
 from app_paths import background_options
 from audio_processing import validate_peak_db
 import os
@@ -240,9 +241,18 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply({'jobs': engine.history()})
         if self.path.startswith('/audio/'):
             import re
-            if not re.fullmatch(r'/audio/[a-f0-9]{32}\.wav', self.path):
+            if not re.fullmatch(r'/audio/[a-f0-9]{32}\.(?:wav|mp3)', self.path):
                 return self.reply({'error': '잘못된 파일 경로'}, 404)
             path = engine.DATA / 'audio' / self.path.rsplit('/', 1)[1]
+            if path.suffix == '.mp3':
+                try:
+                    path = engine.export_mp3(path.stem)
+                except FileNotFoundError:
+                    return self.reply({'error': '파일을 찾을 수 없습니다.'}, 404)
+                except (ValueError, wave.Error) as error:
+                    return self.reply({'error': str(error)}, 400)
+                except Exception:
+                    return self.reply({'error': 'MP3 변환에 실패했습니다. 다시 시도하거나 WAV로 다운로드해 주세요.'}, 503)
             if not path.exists():
                 return self.reply({'error': '파일을 찾을 수 없습니다.'}, 404)
             return self.serve_audio(path)
@@ -281,7 +291,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header('Content-Range',f'bytes */{size}')
                 self.send_header('Content-Length','0');self.end_headers();return
         self.send_response(206 if requested else 200)
-        self.send_header('Content-Type','audio/wav')
+        self.send_header('Content-Type','audio/mpeg' if path.suffix == '.mp3' else 'audio/wav')
         self.send_header('Accept-Ranges','bytes')
         if requested:self.send_header('Content-Range',f'bytes {start}-{end}/{size}')
         self.send_header('Content-Length',str(max(0,end-start+1)))
