@@ -124,25 +124,78 @@ REASONING_LEAK_PATTERNS_EN = [
 REASONING_LEAK_PATTERNS = REASONING_LEAK_PATTERNS_KO
 
 
+def is_structure_tag(line):
+    """Check if a line is a valid ACE-Step / pop song structure tag."""
+    s = line.strip()
+    return bool(
+        re.match(
+            r"^\[(?:ko|en|Intro|Verse(?:\s*\d+)?|Pre-Chorus|Chorus|Bridge|Outro|Hook|Refrain|Interlude)\]",
+            s,
+            re.IGNORECASE,
+        )
+    )
+
+
 def _is_reasoning_line(line, language="ko"):
-    """Check if a line is internal model reasoning or thought leak rather than song lyrics."""
+    """Check if a line is internal model reasoning, thought leak, or prompt meta-text rather than song lyrics."""
     if not line:
         return False
+    s = line.strip()
+
+    # Structure tags are part of valid song lyrics
+    if is_structure_tag(s):
+        return False
+
     # Syllable counter patterns: e.g. "Count: ..." or "word(1) word(2)..."
-    if re.search(r"\bcount\s*[:：]", line, re.IGNORECASE) or re.search(r"[\uac00-\ud7a3a-zA-Z]\s*\(\d+\)", line):
+    if re.search(r"\bcount\s*[:：]", s, re.IGNORECASE) or re.search(r"[\uac00-\ud7a3a-zA-Z]\s*\(\d+\)", s):
         return True
-    # Meta reasoning headers
-    if re.match(r"^\s*(?:Theme|Title|DisplayLyrics|Need|We need|Let's draft|Let's design|Notes?|Plan)\s*[:：]", line, re.IGNORECASE):
+
+    # Meta reasoning headers / CoT prefixes
+    if re.match(
+        r"^(?:Title|DisplayLyrics|StandardLyrics|Lyrics|Need summary|Ensure JSON|Let\'s draft|Let\'s design|Let\'s compose|Let\'s final|Notes?|Plan|Structure|Style|StylePrompt|Summary|In JSON|Valid JSON|Strict JSON)\b",
+        s,
+        re.IGNORECASE,
+    ):
         return True
-    if str(language).lower() == "en":
-        patterns = REASONING_LEAK_PATTERNS_EN
-    else:
-        # If the line contains 5+ Korean characters, it's a song line!
-        korean_chars = len(re.findall(r"[\uac00-\ud7a3]", line))
-        if korean_chars >= 5:
+
+    is_en = str(language).lower() == "en"
+    if not is_en:
+        # For Korean lyrics:
+        # Phonetic adjustment notes (e.g. "가을이" -> "가을리")
+        if "->" in s or "=>" in s:
+            return True
+
+        eng_chars = len(re.findall(r"[a-zA-Z]", s))
+        ko_chars = len(re.findall(r"[\uac00-\ud7a3]", s))
+
+        # Song line with English loanwords/phrases (e.g., "Maybe 너를 사랑했나 봐", "우린 너무 오랫동안 (too long) 기다려왔어")
+        if ko_chars >= 5 and ko_chars >= eng_chars:
             return False
+
+        # Check if line starts with typical English CoT phrases
+        if re.match(r"^(?:Need\b|We need\b|Ensure\b|Should\b|Could\b|Would\b|How to\b|Since\b|However\b|The instruction\b|For vocal\b|Let\'s\b)", s, re.IGNORECASE):
+            return True
+
+        # Check for English CoT keywords
+        if (
+            re.search(
+                r"\b(?:json|markdown|g2p|vocal\s*engine|instruction|natural\s*pronunciation|displaylyrics|standardlyrics)\b",
+                s,
+                re.IGNORECASE,
+            )
+            and eng_chars >= 5
+        ):
+            return True
+
+        # Pure English reasoning line in Korean song
+        if ko_chars == 0 and eng_chars >= 10:
+            return True
+
         patterns = REASONING_LEAK_PATTERNS_KO
-    t_lower = line.lower()
+    else:
+        patterns = REASONING_LEAK_PATTERNS_EN
+
+    t_lower = s.lower()
     return any(re.search(pat, t_lower) for pat in patterns)
 
 
@@ -155,6 +208,74 @@ def _contains_reasoning_leak(text, language="ko"):
         if re.search(pat, t_lower):
             return True
     return False
+
+
+def extract_pure_lyrics(text, language="ko"):
+    """Extract only genuine song lyrics lines, eliminating reasoning, CoT, prompts, and meta thoughts."""
+    if not text or not isinstance(text, str):
+        return ""
+
+    is_en = str(language).lower() == "en"
+    cleaned_text = clean_think_tags(text).strip()
+
+    # Find the best starting point:
+    # Look for [Intro], [Verse 1], or [Verse]
+    start_tag_pattern = r"(?m)^\s*(?:\[(?:ko|en)\]\s*)?(\[(?:Intro|Verse\s*1|Verse)\])"
+    matches = list(re.finditer(start_tag_pattern, cleaned_text, re.IGNORECASE))
+
+    if matches:
+        # If model drafted lyrics multiple times, choose the last draft
+        song_candidate = cleaned_text[matches[-1].start():]
+    else:
+        # Fallback start patterns: look for any structure tag or [ko]/[en]
+        tag_pattern = r"(?m)^\s*\[(?:ko|en|Chorus|Pre-Chorus|Bridge|Verse|Intro)"
+        m = re.search(tag_pattern, cleaned_text, re.IGNORECASE)
+        if m:
+            song_candidate = cleaned_text[m.start():]
+        else:
+            song_candidate = cleaned_text
+
+    lines = song_candidate.split("\n")
+    extracted_lines = []
+    has_song_content = False
+    in_outro = False
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            extracted_lines.append("")
+            continue
+
+        if is_structure_tag(stripped):
+            if re.match(r"^\[Outro\]", stripped, re.IGNORECASE):
+                in_outro = True
+            has_song_content = True
+            extracted_lines.append(stripped)
+            continue
+
+        is_meta = _is_reasoning_line(stripped, language=language)
+
+        is_termination = False
+        if has_song_content:
+            if in_outro and is_meta:
+                is_termination = True
+            elif re.match(r"^(?:Title|Summary|Style|StylePrompt|Need summary|Ensure JSON|Let\'s final|Here is the JSON|```json)\s*[:：]?", stripped, re.IGNORECASE):
+                is_termination = True
+
+        if is_termination:
+            break
+
+        if not is_meta:
+            extracted_lines.append(line)
+            char_pat = r"[a-zA-Z]" if is_en else r"[\uac00-\ud7a3]"
+            if len(re.findall(char_pat, stripped)) >= 2:
+                has_song_content = True
+
+    # Strip empty trailing lines
+    while extracted_lines and not extracted_lines[-1].strip():
+        extracted_lines.pop()
+
+    return "\n".join(extracted_lines).strip()
 
 
 def sanitize_title(title, default_topic="", language="ko"):
@@ -198,21 +319,11 @@ def sanitize_lyrics(lyrics, fallback_display="", language="ko"):
 
     if not lyrics or not isinstance(lyrics, str):
         lyrics = fallback_display or ""
-    text = clean_think_tags(lyrics).strip()
 
-    # Match target tag as standalone tag or line start
-    m_tag = re.search(r"(?m)^\s*\[" + ("en" if is_en else "ko") + r"\]", text, re.IGNORECASE)
-    if m_tag:
-        text = text[m_tag.start():].strip()
-    else:
-        # Check if there is an [Intro] or [Verse] or [Chorus] after English reasoning
-        for marker in (r"(?m)^\s*\[Intro", r"(?m)^\s*\[Verse", r"(?m)^\s*\[Chorus"):
-            m = re.search(marker, text, re.IGNORECASE)
-            if m:
-                before = text[:m.start()].strip()
-                if before and len(re.findall(char_pattern, before)) < 3:
-                    text = text[m.start():].strip()
-                break
+    # Extract pure lyrics lines
+    text = extract_pure_lyrics(lyrics, language=language)
+    if not text and fallback_display:
+        text = extract_pure_lyrics(fallback_display, language=language)
 
     # Clean and normalize language tag (strip any leading [ko] or [en])
     text = re.sub(r"^(?:\[(?:ko|en)\]\s*)+", "", text, flags=re.IGNORECASE).strip()
@@ -232,14 +343,6 @@ def sanitize_lyrics(lyrics, fallback_display="", language="ko"):
     # Validate that lyrics actually contain sufficient language content
     content_chars = len(re.findall(char_pattern, text))
     if content_chars < min_chars:
-        if fallback_display:
-            fb_text = clean_think_tags(fallback_display).strip()
-            fb_lines = [l for l in fb_text.split("\n") if not _is_reasoning_line(l, language=language)]
-            fb_text = "\n".join(fb_lines).strip()
-            fb_text = re.sub(r"^(?:\[(?:ko|en)\]\s*)+", "", fb_text, flags=re.IGNORECASE).strip()
-            if len(re.findall(char_pattern, fb_text)) >= min_chars:
-                return target_tag + "\n" + fb_text
-
         err_msg = "생성된 가사에 영문 내용이 부족합니다. 다시 시도해 주세요." if is_en else "생성된 가사에 한국어 내용이 부족합니다. 다시 시도해 주세요."
         raise ValueError(err_msg)
 
@@ -254,19 +357,14 @@ def sanitize_display_lyrics(display_lyrics, fallback_lyrics="", language="ko"):
 
     if not display_lyrics or not isinstance(display_lyrics, str):
         display_lyrics = fallback_lyrics or ""
-    text = clean_think_tags(display_lyrics).strip()
+
+    # Extract pure lyrics lines
+    text = extract_pure_lyrics(display_lyrics, language=language)
+    if not text and fallback_lyrics:
+        text = extract_pure_lyrics(fallback_lyrics, language=language)
 
     # Strip [ko] or [en] if present in standard display lyrics
     text = re.sub(r"^(?:\[(?:ko|en)\]\s*)+", "", text, flags=re.IGNORECASE).strip()
-
-    # Strip English thought preamble if present before song structure markers
-    for marker in (r"(?m)^\s*\[Intro", r"(?m)^\s*\[Verse", r"(?m)^\s*\[Chorus"):
-        m = re.search(marker, text, re.IGNORECASE)
-        if m and m.start() > 0:
-            before = text[:m.start()].strip()
-            if before and len(re.findall(char_pattern, before)) < 3:
-                text = text[m.start():].strip()
-            break
 
     lines = text.split("\n")
     cleaned_lines = [line for line in lines if not _is_reasoning_line(line, language=language)]
@@ -274,13 +372,6 @@ def sanitize_display_lyrics(display_lyrics, fallback_lyrics="", language="ko"):
 
     content_chars = len(re.findall(char_pattern, text))
     if content_chars < min_chars:
-        if fallback_lyrics:
-            fb_text = clean_think_tags(fallback_lyrics).strip()
-            fb_text = re.sub(r"^(?:\[(?:ko|en)\]\s*)+", "", fb_text, flags=re.IGNORECASE).strip()
-            fb_lines = [l for l in fb_text.split("\n") if not _is_reasoning_line(l, language=language)]
-            fb_text = "\n".join(fb_lines).strip()
-            if len(re.findall(char_pattern, fb_text)) >= min_chars:
-                return fb_text
         err_msg = "생성된 영문 가사에 내용이 부족합니다. 다시 시도해 주세요." if is_en else "생성된 정음 가사에 한국어 내용이 부족합니다. 다시 시도해 주세요."
         raise ValueError(err_msg)
 
@@ -413,7 +504,12 @@ def fallback_parse_text(raw_text, language="ko"):
         re.IGNORECASE,
     )
     if m:
-        style = m.group(1).strip().strip('"').strip("'").strip("*").strip()
+        raw_style = m.group(1).strip()
+        q_m = re.search(r'^["\']([^"\']+)["\']', raw_style)
+        if q_m:
+            style = q_m.group(1).strip()
+        else:
+            style = re.sub(r'["\'].*$', '', raw_style).strip().strip('*').strip()
 
     # Check summary
     m = re.search(
@@ -422,7 +518,12 @@ def fallback_parse_text(raw_text, language="ko"):
         re.IGNORECASE,
     )
     if m:
-        summary = m.group(1).strip().strip('"').strip("'").strip("*").strip()
+        raw_sum = m.group(1).strip()
+        q_m = re.search(r'^["\']([^"\']+)["\']', raw_sum)
+        if q_m:
+            summary = q_m.group(1).strip()
+        else:
+            summary = re.sub(r'["\'].*$', '', raw_sum).strip().strip('*').strip()
 
     # Check lyrics sections
     g2p_match = re.search(

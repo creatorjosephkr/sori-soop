@@ -96,6 +96,80 @@ class ExaoneLyricsTests(unittest.TestCase):
             exaone_lyrics.generate_lyrics("test_key", "   ")
         self.assertIn("주제", str(ctx.exception))
 
+    def test_sanitize_lyrics_strips_full_cot_and_trailing_thoughts(self):
+        user_cot_sample = """Need ensure JSON valid, no markdown. Need maybe lyrics in G2P? We can provide romanized? The instruction says "보컬 엔진용 발음(G2P) 가사" with [ko] tag and structure tags, natural pronunciation (연음 등). Since Korean engine maybe can accept Korean lyrics but G2P? Usually ACE-Step? They ask [ko] and pronunciation. We can write Korean with phonetic adjustments? Maybe use actual Korean but reflect liaison: e.g., "가을이" -> "가을리"? But that's not standard.
+
+Let's craft lyrics:
+
+Structure:
+[Verse 1]
+창밖에 낙엽이 소리 없이 내리고
+저녁 밥상 위 김이 천천히 번져가
+하루의 무게를 어깨에 내려놓으며
+작은 온기로 나를 안아주던 사람
+
+[Pre-Chorus]
+가을을 즐길 새도 없이 달려온 시간
+겨울이 성큼 다가온 뒤에도
+묵묵히 걸어가는 그 길 위에
+내 마음이 닿기를
+
+[Chorus]
+아버지, 참 고생 많으셨어요
+추운 계절에도 식지 않는 마음으로
+우리 가족의 하루를 지켜줘서
+고맙고 또 고마워요
+아버지의 사랑은 항상 봄이에요
+
+[Verse 2]
+바쁜 발걸음 소리 문밖에 두고
+돌아보면 늘 같은 자리에 서서
+말없이 건네던 미소 하나가
+내 겨울을 녹여 주네요
+
+[Pre-Chorus]
+지나간 가을이 아쉬워도
+다가올 봄을 믿으며
+묵묵히 걸어가는 그 길 위에
+내 노래가 닿기를
+
+[Bridge]
+언젠가 세월이 흘러
+아버지의 머리카락이 눈처럼 변해도
+나는 그 손을 잡고 말할래요
+"여기 내가 있어요, 걱정 마세요"
+
+[Outro]
+가을아, 안녕
+겨울아, 천천히 와
+아버지의 오늘은
+우리의 내일이니까
+
+Need title maybe "아버지의 오늘은 우리의 내일". That's poetic. Or "겨울 앞에서도 봄인 사람". Let's choose "겨울 앞에서도 봄인 아버지". Title: "겨울 앞에서도 봄인 아버지". StylePrompt: "Korean emotional ballad, warm and comforting, soft female vocal, slow calm tempo 70-80 BPM" Comma separated.
+
+Need summary one line.
+
+Should lyrics have pronunciation adjustments? Maybe I can slightly adjust in lyrics: "창밖에" -> "창바께", "소리 없이" -> "소리업이".
+Need summary: "늦가을과 겨울 사이에서도 가족을 지키는 아버지의 고단한 일상에 따뜻한 응원과 사랑을 전하는 감성 발라드." Good.
+Ensure JSON valid: no newline actual, use \\n.
+Let's final."""
+
+        clean_vocal = exaone_lyrics.sanitize_lyrics(user_cot_sample)
+        self.assertTrue(clean_vocal.startswith("[ko]\n[Verse 1]"))
+        self.assertTrue(clean_vocal.endswith("우리의 내일이니까"))
+        self.assertNotIn("Need ensure", clean_vocal)
+        self.assertNotIn("Let's craft", clean_vocal)
+        self.assertNotIn("Need title", clean_vocal)
+        self.assertNotIn("Ensure JSON", clean_vocal)
+        self.assertNotIn("Let's final", clean_vocal)
+
+        clean_disp = exaone_lyrics.sanitize_display_lyrics(user_cot_sample)
+        self.assertTrue(clean_disp.startswith("[Verse 1]"))
+        self.assertTrue(clean_disp.endswith("우리의 내일이니까"))
+        self.assertNotIn("[ko]", clean_disp)
+        self.assertNotIn("Need ensure", clean_disp)
+        self.assertNotIn("Let's final", clean_disp)
+
     @patch("urllib.request.urlopen")
     def test_generate_lyrics_success(self, mock_urlopen):
         mock_response = MagicMock()

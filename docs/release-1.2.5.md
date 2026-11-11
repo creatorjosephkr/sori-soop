@@ -12,6 +12,9 @@
    - LG EXAONE 서비스의 일시적인 동시 요청 한도 초과(`service is busy, too many concurrent requests`) 발생 시 최대 2회까지 지수 백오프(Exponential Backoff)로 자동 재시도하여 가사 생성 성공률을 높였습니다.
    - 서버 혼잡 시 일괄적으로 계정 한도 초과로 오해되지 않도록 안내 메시지를 분기하고, API 서버가 혼잡할 때 **ChatGPT 등 외부 서비스의 활용을 권장**하는 안내를 추가했습니다.
 
+3. **가사 창 본문 순수성 정제(Sanitization) 대폭 강화**
+   - EXAONE 2.5 추론(Reasoning) 모델이 가사를 생성할 때 앞뒤 또는 중간에 덧붙이는 내부 사고 과정(CoT), 영문 지침 분석, 사전 초안 및 메타 발화(예: `Need ensure...`, `Should lyrics have...`, `Need summary...` 등)를 완벽하게 걸러내고 순수한 노래 가사 본문만 가사 창에 등록되도록 정제 로직을 고도화했습니다.
+
 **업데이트:** 기존 앱을 종료한 뒤 새 파일로 설치·교체해 주세요. 기존 음악·노래·설정·모델 데이터는 유지됩니다.
 
 - **Mac:** `SoriSoop-1.2.5-macos-arm64.dmg` → Applications로 복사. Apple Silicon / macOS 14 이상.
