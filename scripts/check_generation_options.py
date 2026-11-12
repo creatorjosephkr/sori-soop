@@ -15,9 +15,10 @@ def check():
     const choose=(value)=>{$('music-bpm').value=value;$('music-bpm').onchange();};
     const rejects=fn=>{try{fn();return false;}catch(e){return true;}};
     api.render('bgm',false);
-    assert(!api.negative().includes('out of tune')&&!api.negative().includes('vocals')&&!$('negative-options-details').open,'bgm exceptions and collapsed');
+    assert(!$('negative-options-details').open,'negative details initially collapsed');
     let checks=$('negative-options').querySelectorAll('input');
-    assert(checks.length===14&&[...checks].filter(input=>input.checked).length===12,'bgm default selection');
+    assert(checks.length===14&&[...checks].filter(input=>input.checked).length===14,'bgm all defaults selected');
+    assert(api.negative().includes('out of tune')&&api.negative().includes('vocals, singing, speech'),'bgm includes all exclusions');
     for(const input of checks){input.checked=false;input.onchange();}
     checks[13].checked=true;checks[13].onchange();
     assert(api.negative()==='vocals, singing, speech','selected exclusion only');
@@ -36,7 +37,7 @@ def check():
     assert(rejects(()=>api.prompt('')),'description required');
     api.render('bgm',false);assert(api.negative()==='vocals, singing, speech'&&$('music-bpm').value==='','mode restoration');
     api.render('sfx',false);assert($('tempo-options').hidden&&$('negative-options').querySelectorAll('input').length===9,'sfx scope');assert(api.negative()===''&&[...$('negative-options').querySelectorAll('input')].every(input=>!input.checked),'sfx defaults off');
-    api.reset();api.render('bgm',false);assert($('negative-options').querySelectorAll('input:checked').length===12&&$('music-bpm').value==='','reset restores bgm defaults');
+    api.reset();api.render('bgm',false);assert($('negative-options').querySelectorAll('input:checked').length===14&&$('music-bpm').value==='','reset restores bgm defaults');
     assert(api.negative('song').includes('gibberish')&&api.negative('sfx')==='','defaults for unvisited types');
     return 'All generation option interaction checks passed';
  })()''')

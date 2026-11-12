@@ -28,7 +28,7 @@
     let key='bgm';
     function options(type){return [...common,...(type==='sfx'?[]:music),...(type==='song'?vocal:type==='sfx'?[]:instrumental)];}
     function draft(type=key){
-        const defaults=options(type).filter(([value])=>type!=='sfx'&&(type!=='bgm'||!['vocals, singing, speech','out of tune'].includes(value))).map(([value])=>value);
+        const defaults=options(type).filter(()=>type!=='sfx').map(([value])=>value);
         return drafts[type]||(drafts[type]={negative:new Set(defaults),bpm:'',custom:'',customNegative:''});
     }
     function negative(type=key){
