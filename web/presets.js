@@ -4,8 +4,12 @@
         genre:{label:'장르 및 음악 스타일',musicOnly:true,items:[
             ['ballad','감성 발라드','ballad, emotional and expressive singing style, soft and heartfelt vocal tone','emotional instrumental ballad, soft piano, heartfelt melodies'],
             ['pop','신나는 팝/댄스','pop and dance music, energetic and upbeat pop vocals, dynamic rhythm, bright and clean tone','upbeat pop and dance music, dynamic rhythm, bright and clean instrumental sound'],
-            ['rnb','힙합/알앤비','hip-hop and R&B, smooth and soulful R&B rhythm, rhythmic and groovy vocal delivery','hip-hop and R&B instrumental, soulful chords, smooth bass and groovy beats'],
+            ['ccm','CCM/기독교 음악','contemporary Christian music, uplifting and worshipful vocal delivery, acoustic piano, soaring strings, warm spiritual atmosphere','contemporary Christian worship instrumental, warm piano, soaring strings, hopeful spiritual ambience'],
+            ['gospel','찬송가/가스펠','heartfelt gospel hymn, soulful and inspiring vocal harmonies, warm piano and organ accompaniment','inspiring gospel hymn instrumental, soulful piano and warm organ arrangement'],
+            ['buddhist','불교음악/명상','serene meditative music, peaceful and tranquil vocal chant, meditative bells, soft bamboo flute and calm ambience','serene meditative instrumental, tranquil temple bells, bamboo flute and peaceful atmospheric soundscape'],
+            ['sacred','성가/종교음악','sacred choral music, reverent and graceful vocal tone, resonant cathedral acoustics and gentle pipe organ','reverent sacred instrumental, cathedral acoustics, gentle organ and peaceful strings'],
             ['acoustic','어쿠스틱/인디','acoustic indie, intimate and raw indie vocal tone, natural and warm acoustic vibe','warm acoustic indie instrumental, natural acoustic guitar and intimate arrangement'],
+            ['rnb','힙합/알앤비','hip-hop and R&B, smooth and soulful R&B rhythm, rhythmic and groovy vocal delivery','hip-hop and R&B instrumental, soulful chords, smooth bass and groovy beats'],
             ['rock','웅장한 록/메탈','epic rock and metal, powerful and gritty rock vocals, strong projection, high energy','epic rock and metal instrumental, powerful electric guitars, energetic drums'],
             ['jazz','재즈/라운지','jazz lounge, relaxed and sophisticated vocals, warm piano and upright bass','relaxed jazz lounge instrumental, warm piano, brushed drums and upright bass'],
             ['lofi','로파이','lofi pop, mellow intimate vocals, soft drums and warm piano','mellow lofi instrumental, soft drums, warm piano and gentle textures'],

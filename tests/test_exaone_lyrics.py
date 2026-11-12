@@ -265,6 +265,43 @@ Need title: "가을밤의 온기". Summary: "깊어가는 가을 밤의 따뜻�
         self.assertNotIn("Summary:", sanitized_frag)
 
     @patch("urllib.request.urlopen")
+    def test_generate_lyrics_auto_recommendation(self, mock_urlopen):
+        mock_response = MagicMock()
+        mock_response.read.return_value = json.dumps({
+            "choices": [{
+                "message": {
+                    "content": json.dumps({
+                        "title": "가을의 온기",
+                        "stylePrompt": "acoustic folk, warm acoustic guitar, calm mood, 85 BPM",
+                        "displayLyrics": "바람이 불어오면",
+                        "lyrics": "[ko]\n바람이 불어오면",
+                        "summary": "가을 감성 포크송"
+                    })
+                }
+            }]
+        }).encode("utf-8")
+        mock_urlopen.return_value.__enter__.return_value = mock_response
+
+        res = exaone_lyrics.generate_lyrics(
+            api_key="valid-key",
+            prompt="따뜻한 모닥불 앞에서 듣는 가을 노래",
+            genre="선택안함(AI추천)",
+            mood="선택안함(AI추천)",
+            tempo="선택안함(AI추천)"
+        )
+        self.assertEqual(res["title"], "가을의 온기")
+        self.assertEqual(res["stylePrompt"], "acoustic folk, warm acoustic guitar, calm mood, 85 BPM")
+
+        # Verify payload messages
+        call_args, call_kwargs = mock_urlopen.call_args
+        req = call_args[0]
+        sent_payload = json.loads(req.data.decode("utf-8"))
+        user_content = sent_payload["messages"][1]["content"]
+        self.assertIn("장르 및 스타일: 선택안함(AI추천)", user_content)
+        self.assertIn("감정선 및 분위기: 선택안함(AI추천)", user_content)
+        self.assertIn("템포: 선택안함(AI추천)", user_content)
+
+    @patch("urllib.request.urlopen")
     def test_generate_lyrics_success(self, mock_urlopen):
         mock_response = MagicMock()
         mock_response.read.return_value = json.dumps({

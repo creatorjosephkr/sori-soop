@@ -103,6 +103,8 @@ def start(settings, prompt, available=None, lyrics='', language='ko', title='', 
         raise ValueError('효과음(Small-SFX) 모델을 먼저 준비해 주세요. 음악 모델 설정 아래의 설치 버튼을 누르세요.')
     if song:
         if settings.get('songQuality','light') not in song_runtime.PLANNERS:raise ValueError('노래 품질 모델을 확인하세요.')
+        import song_expert
+        settings['songExpert']=song_expert.normalize(settings.get('songExpert'))
         if settings.get('songQuality')=='quality':
             if not planner_ready('quality'):raise ValueError('품질 우선 모델을 먼저 준비해 주세요. 노래 품질 설정 아래의 준비 버튼을 누르세요.')
             minimum=4 if settings['backend']=='apple' else 8

@@ -65,8 +65,10 @@ class SongLyricsTests(unittest.TestCase):
     def test_runner_uses_upstream_lm_guidance_and_turbo_shift(self):
         root=Path(__file__).resolve().parent.parent
         runner=(root/'runners/song.py').read_text(encoding='utf-8')
-        self.assertIn('temperature=0.85,cfg_scale=2.0,top_p=0.9',runner)
-        self.assertIn('inference_steps=8,shift=3.0',runner)
+        self.assertIn("temperature=expert['lmTemperature'],cfg_scale=expert['lmCfgScale'],top_p=expert['lmTopP']",runner)
+        self.assertIn("inference_steps=expert['inferenceSteps'],shift=expert['shift']",runner)
+        import song_expert
+        self.assertEqual((song_expert.DEFAULTS['lmTemperature'],song_expert.DEFAULTS['lmCfgScale'],song_expert.DEFAULTS['lmTopP'],song_expert.DEFAULTS['inferenceSteps'],song_expert.DEFAULTS['shift']),(0.85,2.0,0.9,8,3.0))
 
     def test_lyric_request_prompt_contains_acestep_g2p_and_syllable_rules(self):
         root=Path(__file__).resolve().parent.parent

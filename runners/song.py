@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from app_paths import ENGINE_ROOT
 from song_runtime import PLANNERS
+from song_expert import normalize as normalize_expert
 from song_duration import automatic,plan_options,planned_seconds,explicit_bpm,check_planned_bpm,check_planned_language
 from song_lyrics import check_lyric_tokens,check_audio_codes,check_caption_tokens,check_formatted_lyric_tokens
 REPO = ENGINE_ROOT / 'ace-step'
@@ -60,6 +61,8 @@ import torch
 import soundfile as sf
 import numpy as np
 settings=job['settings']
+expert=normalize_expert(settings.get('songExpert'))
+print('전문가 설정: '+json.dumps(expert,ensure_ascii=False),flush=True)
 backend=settings.get('backend')
 if backend=='apple':
     device='mps'
@@ -133,7 +136,7 @@ if a.phase!='render':
     try:
         plan=planner.generate_with_stop_condition(caption=caption,lyrics=lyrics,
             infer_type='llm_dit',**plan_options(settings,tempo_caption,job['language']),use_cot_caption=False,
-            use_cot_language=not instrumental,use_cot_metas=True,temperature=0.85,cfg_scale=2.0,top_p=0.9,
+            use_cot_language=not instrumental,use_cot_metas=True,temperature=expert['lmTemperature'],cfg_scale=expert['lmCfgScale'],top_p=expert['lmTopP'],
             negative_prompt=negative_prompt,batch_size=1,seeds=[job['seed']])
         if not plan.get('success') or not plan.get('audio_codes'):
             raise RuntimeError(plan.get('error') or '곡 구성을 생성하지 못했습니다.')
@@ -218,7 +221,8 @@ params=GenerationParams(caption=caption,lyrics=lyrics,instrumental=instrumental,
     vocal_language='unknown' if instrumental else (job['language'] if job['language']!='unknown' else metadata.get('language','unknown')),duration=duration,seed=job['seed'],
     audio_codes=plan['audio_codes'],bpm=metadata.get('bpm'),keyscale=metadata.get('keyscale',''),
     timesignature=str(metadata.get('timesignature','')),lm_negative_prompt=negative_prompt,
-    inference_steps=8,shift=3.0,thinking=False,use_cot_metas=False,use_cot_caption=False,
+    inference_steps=expert['inferenceSteps'],shift=expert['shift'],infer_method=expert['inferMethod'],
+    sampler_mode=expert['sampler'],dcw_enabled=expert['dcw'],thinking=False,use_cot_metas=False,use_cot_caption=False,
     use_cot_language=False,enable_normalization=False)
 config=GenerationConfig(batch_size=1,use_random_seed=False,seeds=[job['seed']],audio_format='wav')
 output=Path(a.out)

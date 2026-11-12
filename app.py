@@ -5,6 +5,7 @@ import exaone_lyrics
 import installer
 import updates
 import song_duration
+import song_expert
 import wave
 from app_paths import background_options
 from audio_processing import validate_peak_db
@@ -210,7 +211,8 @@ def validate(settings):
             except (ValueError, TypeError):
                 raise ValueError('대기 시간 형식이 올바르지 않습니다.')
     validate_peak_db(settings.get('peakDb', -8))
-    return {k: settings[k] for k in ('policy', 'mode', 'model', 'seconds', 'backend', 'peakDb', 'durationMode', 'songQuality', 'instrumental', 'exaoneApiKey', 'exaoneTimeout') if k in settings}
+    if 'songExpert' in settings:settings['songExpert']=song_expert.normalize(settings['songExpert'])
+    return {k: settings[k] for k in ('policy', 'mode', 'model', 'seconds', 'backend', 'peakDb', 'durationMode', 'songQuality', 'songExpert', 'instrumental', 'exaoneApiKey', 'exaoneTimeout') if k in settings}
 
 def resolve_generation_settings(settings, info):
     resolved = dict(settings)
@@ -267,7 +269,7 @@ class Handler(BaseHTTPRequestHandler):
             info = diagnose()
             settings = read_settings()
             return self.reply({'system': info, 'settings': settings, 'translationReady': translation.ready(), 'recommendation': recommend(info, settings.get('mode', 'bgm')), 'models': MODELS, 'engineReady': engine.ready('apple' if info['appleSilicon'] else ('cuda' if info.get('cudaEligible') else 'cpu')), 'engines': {b: engine.ready(b) for b in ('apple', 'cpu', 'cuda')}, 'sa3Models': {b: {m: engine.sa3_model_ready(b, m) for m in ('small-music', 'medium', 'small-sfx')} for b in ('apple', 'cpu', 'cuda')}, 'songEngines': {b: engine.ready(b, 'ace-step') for b in ('apple', 'cpu', 'cuda')}, 'songPlanners':{q:engine.planner_ready(q) for q in ('light','quality')}, 'hasExaoneApiKey': bool(settings.get('exaoneApiKey')), 'exaoneTimeout': settings.get('exaoneTimeout', exaone_lyrics.DEFAULT_REQUEST_TIMEOUT)})
-        paths = {'/': 'index.html', '/style.css': 'style.css', '/app.js': 'app.js', '/generation-options.js': 'generation-options.js', '/presets.js': 'presets.js', '/player.js': 'player.js', '/icons.js': 'icons.js', '/setup.js': 'setup.js', '/updates.js': 'updates.js', '/fonts/NotoSansKR-Variable.ttf': 'fonts/NotoSansKR-Variable.ttf', '/icons/sorisup.svg': 'icons/sorisup.svg', '/icons/chatgpt.svg': 'icons/chatgpt.svg', '/icons/claude.ico': 'icons/claude.ico', '/icons/gemini.png': 'icons/gemini.png'}
+        paths = {'/': 'index.html', '/style.css': 'style.css', '/app.js': 'app.js', '/generation-options.js': 'generation-options.js', '/expert-settings.js': 'expert-settings.js', '/presets.js': 'presets.js', '/player.js': 'player.js', '/icons.js': 'icons.js', '/setup.js': 'setup.js', '/updates.js': 'updates.js', '/fonts/NotoSansKR-Variable.ttf': 'fonts/NotoSansKR-Variable.ttf', '/icons/sorisup.svg': 'icons/sorisup.svg', '/icons/chatgpt.svg': 'icons/chatgpt.svg', '/icons/claude.ico': 'icons/claude.ico', '/icons/gemini.png': 'icons/gemini.png'}
         paths.update({'/spon/'+name: '../spon/'+name for name in ('spon.svg', 'kakaobank.png', 'paypal.png')})
         if self.path not in paths:
             return self.reply({'error': '찾을 수 없습니다.'}, 404)

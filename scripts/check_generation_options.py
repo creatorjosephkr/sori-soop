@@ -3,7 +3,7 @@ from pathlib import Path
 import threading, json
 import webview
 root=Path(__file__).resolve().parent.parent
-html='''<details id="negative-options-details"><summary id="negative-summary"></summary><div id="negative-options"></div></details><section id="tempo-options"><select id="music-bpm"><option value=""></option><option value="120"></option><option value="custom"></option></select><div id="custom-bpm-wrap"><input id="music-bpm-custom" type="number"></div><p id="bpm-preview"></p></section>'''
+html='''<details id="negative-options-details"><summary id="negative-summary"></summary><div id="negative-options"></div><input id="negative-custom"></details><section id="tempo-options"><select id="music-bpm"><option value=""></option><option value="120"></option><option value="custom"></option></select><div id="custom-bpm-wrap"><input id="music-bpm-custom" type="number"></div><p id="bpm-preview"></p></section>'''
 html+='<script>'+ (root/'web/generation-options.js').read_text()+'</script>'
 window=webview.create_window('Options checks',html=html,hidden=True)
 result={}
@@ -24,7 +24,7 @@ def check():
     api.render('song',false);
     assert($('tempo-options').hidden&&[...$('negative-options').querySelectorAll('input')].every(input=>input.checked),'all vocal defaults selected');
     assert($('negative-options').textContent.includes('불분명한 발음')&&!$('negative-options').textContent.includes('보컬·말소리'),'vocal appropriate');
-    api.render('song',true);assert($('negative-options').querySelectorAll('input:checked').length===12&&!api.negative().includes('out of tune')&&!api.negative().includes('vocals'),'song instrumental uses bgm defaults');choose('120');
+    api.render('song',true);assert($('negative-options').querySelectorAll('input:checked').length===14&&api.negative().includes('vocals, singing, speech'),'song instrumental selects all defaults');if($('negative-custom')){$('negative-custom').value='heavy reverb';$('negative-custom').oninput();assert(api.negative().includes('heavy reverb'),'custom negative included');$('negative-custom').value='';$('negative-custom').oninput();}choose('120');
     assert(api.prompt('Piano')==='Piano\\nTempo: 120 BPM.','preset merged');
     assert(api.prompt('Piano 120 BPM')==='Piano 120 BPM','no duplicate bpm');
     assert(rejects(()=>api.prompt('Piano 80 BPM')),'conflicting bpm');

@@ -28,10 +28,15 @@
     let key='bgm';
     function options(type){return [...common,...(type==='sfx'?[]:music),...(type==='song'?vocal:type==='sfx'?[]:instrumental)];}
     function draft(type=key){
-        const defaults=options(type).filter(([value])=>type!=='sfx'&&(!['bgm','instrumental'].includes(type)||!['vocals, singing, speech','out of tune'].includes(value))).map(([value])=>value);
-        return drafts[type]||(drafts[type]={negative:new Set(defaults),bpm:'',custom:''});
+        const defaults=options(type).filter(([value])=>type!=='sfx'&&(type!=='bgm'||!['vocals, singing, speech','out of tune'].includes(value))).map(([value])=>value);
+        return drafts[type]||(drafts[type]={negative:new Set(defaults),bpm:'',custom:'',customNegative:''});
     }
-    function negative(type=key){const selected=draft(type).negative;return options(type).filter(([value])=>selected?.has(value)).map(([value])=>value).join(', ');}
+    function negative(type=key){
+        const selected=options(type).filter(([value])=>draft(type).negative?.has(value)).map(([value])=>value);
+        const custom=(draft(type).customNegative||'').trim();
+        if(custom)selected.push(custom);
+        return selected.join(', ');
+    }
     function renderNegative(){
         const list=$('negative-options');list.replaceChildren();
         for(const [value,title,description] of options(key)){
@@ -41,9 +46,19 @@
             name.textContent=title;help.textContent=description;text.append(name,help);label.append(input,text);list.append(label);
             input.onchange=()=>{if(input.checked)draft().negative.add(value);else draft().negative.delete(value);summary();};
         }
+        if($('negative-custom'))$('negative-custom').value=draft().customNegative||'';
         summary();
     }
-    function summary(){const count=draft().negative.size;$('negative-summary').textContent='네거티브 프롬프트 · '+(count?count+'개 선택':'사용 안 함');}
+    function summary(){
+        const count=draft().negative.size;
+        const hasCustom=Boolean((draft().customNegative||'').trim());
+        let text='네거티브 프롬프트 · ';
+        if(count&&hasCustom)text+=`${count}개 선택 + 직접 입력`;
+        else if(count)text+=`${count}개 선택`;
+        else if(hasCustom)text+='직접 입력';
+        else text+='사용 안 함';
+        $('negative-summary').textContent=text;
+    }
     function render(mode,isInstrumental){
         const next=mode==='song'?(isInstrumental?'instrumental':'song'):mode;
         if(next!==key){key=next;renderNegative();}
@@ -53,6 +68,7 @@
         $('tempo-options').hidden=!(mode==='bgm'||isInstrumental);
         $('music-bpm').value=draft().bpm;$('music-bpm-custom').value=draft().custom;
         $('custom-bpm-wrap').hidden=draft().bpm!=='custom';
+        if($('negative-custom'))$('negative-custom').value=draft().customNegative||'';
         preview();
     }
     function bpm(){
@@ -79,7 +95,8 @@
     }
     $('music-bpm').onchange=()=>{draft().bpm=$('music-bpm').value;$('custom-bpm-wrap').hidden=draft().bpm!=='custom';preview();};
     $('music-bpm-custom').oninput=()=>{draft().custom=$('music-bpm-custom').value;preview();};
-    function reset(){for(const type of Object.keys(drafts))delete drafts[type];$('negative-options-details').open=false;renderNegative();$('music-bpm').value='';$('music-bpm-custom').value='';$('custom-bpm-wrap').hidden=true;preview();}
+    if($('negative-custom'))$('negative-custom').oninput=()=>{draft().customNegative=$('negative-custom').value;summary();};
+    function reset(){for(const type of Object.keys(drafts))delete drafts[type];$('negative-options-details').open=false;renderNegative();$('music-bpm').value='';$('music-bpm-custom').value='';$('custom-bpm-wrap').hidden=true;if($('negative-custom'))$('negative-custom').value='';preview();}
     window.GenerationOptions={render,negative,prompt,reset};
     reset();
 })();

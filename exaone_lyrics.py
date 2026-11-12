@@ -24,6 +24,7 @@ SYSTEM_PROMPT_KO = """당신은 AI 음악 생성 모델 'ACE-Step' 전용 전문
    - `displayLyrics`: 화면 표시 및 기본 등록을 위한 표준 한글 맞춤법(정음) 가사 (곡 구조 태그 포함)
    - `lyrics`: 보컬 엔진용 가사. 맨 첫 줄에 반드시 `[ko]` 태그를 넣고, 구조 태그와 함께 소리 나는 자연스러운 발음(연음 등)을 반영하여 작성하세요.
 3. **영문 스타일 프롬프트(stylePrompt)**:
+   - 사용자가 장르, 분위기, 템포에 '선택안함(AI추천)'을 지정한 경우, 제공된 노래 설명(주제 및 이야기)을 세밀하게 분석하여 곡에 가장 잘 어울리는 장르, 분위기/감정 키워드, 그리고 적절한 구체적 템포(예: `105 BPM`)를 직접 창의적으로 도출하여 영문 스타일 프롬프트에 반드시 명시하세요.
    - 곡의 장르, 메인 악기 구성, 분위기/감정, 보컬 음색/성별, 템포(BPM)를 쉼표로 구분된 영문 키워드 태그로 작성하세요.
 
 반드시 다음 필드를 포함하는 순수한 단일 JSON 객체로만 응답하세요:
@@ -47,6 +48,7 @@ Analyze the user's song planning request to write a creative English song title,
    - `displayLyrics`: Standard English lyrics with structure tags for display.
    - `lyrics`: Vocal engine English lyrics starting with `[en]` on the very first line, followed by structure tags and singable lyrics.
 3. **Style Prompt (stylePrompt)**:
+   - If the user selected '선택안함(AI추천)' (AI recommendation) for genre, mood, or tempo, deeply analyze the song topic and story to autonomously choose the best-fitting genre, mood/emotional keywords, and an exact tempo (e.g. `105 BPM`) in the stylePrompt.
    - English comma-separated tags specifying genre, main instrumentation, mood/emotion, vocal timbre/gender, and tempo (BPM).
 4. **Summary**:
    - A short one-line summary of the song's concept and narrative in Korean (한국어로 작성).
@@ -917,14 +919,24 @@ def generate_lyrics(api_key, prompt, *, genre="", mood="", voice="", tempo="", t
         f"- 작사 언어: {lang_name} 곡 제목 및 노래 가사",
         f"- 주제 및 이야기: {prompt}",
     ]
-    if genre:
+    auto_indicators = {"", "선택안함(AI추천)", "선택 안 함 (AI 추천)", "선택 안 함", "선택안함", "__auto__"}
+    if genre and genre.strip() not in auto_indicators:
         user_info_lines.append(f"- 장르 및 스타일: {genre.strip()}")
-    if mood:
+    else:
+        user_info_lines.append("- 장르 및 스타일: 선택안함(AI추천) → 노래 설명(주제 및 이야기)을 깊이 분석하여 가장 잘 어울리는 장르 및 음악 스타일을 직접 선정하여 영문 스타일에 반영")
+
+    if mood and mood.strip() not in auto_indicators:
         user_info_lines.append(f"- 감정선 및 분위기: {mood.strip()}")
-    if voice:
+    else:
+        user_info_lines.append("- 감정선 및 분위기: 선택안함(AI추천) → 노래 설명과 가사 흐름에 최적인 감정선 및 분위기 키워드를 직접 분석하여 영문 스타일에 반영")
+
+    if voice and voice.strip() not in auto_indicators:
         user_info_lines.append(f"- 희망 보컬 음색: {voice.strip()}")
-    if tempo:
+
+    if tempo and tempo.strip() not in auto_indicators:
         user_info_lines.append(f"- 템포: {tempo.strip()}")
+    else:
+        user_info_lines.append("- 템포: 선택안함(AI추천) → 곡의 장르와 분위기에 어울리는 최적의 템포(BPM)를 직접 결정하여 영문 스타일에 반영")
 
     user_message = (
         f"다음 곡 기획 정보를 바탕으로 ACE-Step 전용 {lang_name} 노래 가사와 영문 스타일 프롬프트를 작성해 주세요.\n\n"

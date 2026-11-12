@@ -5,14 +5,25 @@
     let context=null,mode=localStorage.getItem('music-spectrum-mode')||'digital';
     if(!['digital','analog','off'].includes(mode))mode='digital';
     const clock=value=>{const seconds=Number.isFinite(value)?Math.max(0,Math.floor(value)):0;return String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');};
-    function markup(url){return `<div class="audio-player"><canvas class="audio-spectrum" aria-hidden="true"></canvas><div class="player-surface"><div class="spectrum-toolbar"><span>오디오 스펙트럼</span><select class="spectrum-mode" aria-label="스펙트럼 표시 방식"><option value="digital">디지털</option><option value="analog">아날로그</option><option value="off">끄기</option></select></div><audio preload="none" src="${url}" aria-label="생성한 음악"></audio><div class="player-controls"><button type="button" class="player-toggle" data-play="true" aria-label="재생" aria-pressed="false"><span aria-hidden="true">${window.StudioIcons('play')}</span></button><input class="player-seek" type="range" min="0" max="1000" step="1" value="0" aria-label="재생 위치" disabled><button type="button" class="player-mute" aria-label="음소거" aria-pressed="false"><span aria-hidden="true">${window.StudioIcons('volume')}</span></button></div><div class="player-meta"><span class="player-time">00:00 / 00:00</span><label class="player-volume-label">음량<input class="player-volume" type="range" min="0" max="1" step="0.05" value="1" aria-label="재생 음량"></label></div><p class="spectrum-note" role="status" hidden></p></div></div>`;}
+    function markup(url){
+        return `<div class="audio-player"><canvas class="audio-spectrum" aria-hidden="true"></canvas><div class="player-surface"><div class="player-main"><div class="spectrum-toolbar"><span>오디오 스펙트럼</span><select class="spectrum-mode" aria-label="스펙트럼 표시 방식"><option value="digital">디지털</option><option value="analog">아날로그</option><option value="off">끄기</option></select></div><audio preload="none" src="${url}" aria-label="생성한 음악"></audio><div class="player-controls"><button type="button" class="player-toggle" data-play="true" aria-label="재생" aria-pressed="false"><span aria-hidden="true">${window.StudioIcons('play')}</span></button><input class="player-seek" type="range" min="0" max="1000" step="1" value="0" aria-label="재생 위치" disabled><button type="button" class="player-mute" aria-label="음소거" aria-pressed="false"><span aria-hidden="true">${window.StudioIcons('volume')}</span></button></div><div class="player-meta"><span class="player-time">00:00 / 00:00</span><label class="player-volume-label">음량<input class="player-volume" type="range" min="0" max="1" step="0.05" value="1" aria-label="재생 음량"></label></div><p class="spectrum-note" role="status" hidden></p></div><div class="player-meter-wrap" title="스테레오 오디오 레벨 미터 (0dB ~ -30dB, 무음)"><canvas class="player-meter-canvas" width="54" height="106" aria-label="스테레오 오디오 레벨" role="img"></canvas></div></div></div>`;
+    }
     function attach(root){
         for(const audio of root.querySelectorAll('.audio-player audio')){
             if(entries.has(audio))continue;
             const player=audio.closest('.audio-player');
-            const entry={audio,player,canvas:player.querySelector('canvas'),analyser:null,source:null,frame:0,last:0,disposed:false};
+            const entry={
+                audio,player,
+                canvas:player.querySelector('.audio-spectrum'),
+                meterCanvas:player.querySelector('.player-meter-canvas'),
+                analyser:null,source:null,splitter:null,analyserL:null,analyserR:null,
+                frame:0,last:0,disposed:false,
+                levelL:0,levelR:0,peakHoldL:0,peakHoldR:0
+            };
             entry.context=entry.canvas.getContext('2d');
+            entry.meterContext=entry.meterCanvas?.getContext('2d');
             entry.frequency=new Uint8Array(512);entry.wave=new Uint8Array(1024);
+            entry.dataL=new Uint8Array(256);entry.dataR=new Uint8Array(256);
             entries.set(audio,entry);player.querySelector('.spectrum-mode').value=mode;
             player.dataset.spectrumMode=mode;
             player.querySelector('.player-seek').oninput=event=>{
@@ -25,15 +36,19 @@
                 document.querySelectorAll('.audio-player audio').forEach(media=>{
                     const other=entries.get(media);if(!other)return;
                     other.player.querySelector('.spectrum-mode').value=mode;other.player.dataset.spectrumMode=mode;
-                    cancelAnimationFrame(other.frame);other.frame=0;draw(other);
+                    cancelAnimationFrame(other.frame);other.frame=0;draw(other);drawMeter(other,true);
                     if(!media.paused){prepare(media);start(other);}
                 });
             };
             for(const type of ['loadedmetadata','durationchange','timeupdate','volumechange','seeked','emptied'])audio.addEventListener(type,()=>update(entry));
             audio.addEventListener('play',()=>{prepare(audio);start(entry);});
-            for(const type of ['pause','ended','error'])audio.addEventListener(type,()=>{cancelAnimationFrame(entry.frame);entry.frame=0;update(entry);});
-            entry.resize=new ResizeObserver(()=>draw(entry));entry.resize.observe(player);
-            update(entry);draw(entry);
+            for(const type of ['pause','ended','error'])audio.addEventListener(type,()=>{
+                cancelAnimationFrame(entry.frame);entry.frame=0;
+                entry.levelL=0;entry.levelR=0;entry.peakHoldL=0;entry.peakHoldR=0;
+                drawMeter(entry,true);update(entry);
+            });
+            entry.resize=new ResizeObserver(()=>{draw(entry);drawMeter(entry);});entry.resize.observe(player);
+            update(entry);draw(entry);drawMeter(entry,true);
         }
     }
     function update(entry){
@@ -54,10 +69,22 @@
         entry.source=context.createMediaElementSource(entry.audio);
         // Exactly one audible path: no parallel connection that would increase gain.
         entry.source.connect(entry.analyser);entry.analyser.connect(context.destination);
+        // Stereo level meter path (sink only, not connected to destination)
+        try{
+            entry.splitter=context.createChannelSplitter(2);
+            entry.analyserL=context.createAnalyser();entry.analyserR=context.createAnalyser();
+            entry.analyserL.fftSize=256;entry.analyserR.fftSize=256;
+            entry.analyserL.smoothingTimeConstant=.3;entry.analyserR.smoothingTimeConstant=.3;
+            entry.source.connect(entry.splitter);
+            entry.splitter.connect(entry.analyserL,0);
+            entry.splitter.connect(entry.analyserR,1);
+        }catch(e){
+            entry.analyserL=entry.analyser;entry.analyserR=entry.analyser;
+        }
         entry.player.dataset.spectrumReady='true';
     }
     function prepare(audio){
-        const entry=entries.get(audio);if(!entry||entry.disposed||mode==='off')return;
+        const entry=entries.get(audio);if(!entry||entry.disposed)return;
         try{
             const Constructor=window.AudioContext||window.webkitAudioContext;
             if(!Constructor)throw Error('Web Audio unavailable');
@@ -70,7 +97,6 @@
         }catch{fallback(entry);}
     }
     function fallback(entry){
-        // If graph creation failed midway, retain an audible single route.
         if(entry.source){try{entry.source.disconnect();entry.analyser?.disconnect();entry.source.connect(context.destination);entry.analyser=null;}catch{}}
         const note=entry.player.querySelector('.spectrum-note');
         note.hidden=false;note.textContent='스펙트럼을 사용할 수 없어 기본 오디오로 재생합니다.';
@@ -105,13 +131,115 @@
         }
         player.dataset.spectrumDrawn=mode;
     }
+    function toDbRatio(amp){
+        if(amp<=0.0001)return 0;
+        const db=20*Math.log10(amp);
+        if(db<=-36)return 0;
+        if(db>=0)return 1;
+        return (db+36)/36;
+    }
+    function drawMeter(entry,isIdle=false){
+        if(entry.disposed||!entry.meterContext||!entry.meterCanvas)return;
+        const canvas=entry.meterCanvas,ctx=entry.meterContext;
+        const ratio=Math.min(devicePixelRatio||1,2);
+        const w=54,h=106;
+        if(canvas.width!==Math.round(w*ratio)||canvas.height!==Math.round(h*ratio)){
+            canvas.width=Math.round(w*ratio);canvas.height=Math.round(h*ratio);
+        }
+        ctx.setTransform(ratio,0,0,ratio,0,0);ctx.clearRect(0,0,w,h);
+
+        let curL=0,curR=0;
+        if(!isIdle&&!entry.audio.paused&&entry.analyserL&&entry.analyserR){
+            entry.analyserL.getByteTimeDomainData(entry.dataL);
+            entry.analyserR.getByteTimeDomainData(entry.dataR);
+            let ampL=0,ampR=0;
+            for(let i=0;i<entry.dataL.length;i++){
+                const d=Math.abs(entry.dataL[i]-128)/128;if(d>ampL)ampL=d;
+            }
+            for(let i=0;i<entry.dataR.length;i++){
+                const d=Math.abs(entry.dataR[i]-128)/128;if(d>ampR)ampR=d;
+            }
+            const targetL=toDbRatio(ampL),targetR=toDbRatio(ampR);
+            // Instant attack, smooth release
+            entry.levelL=targetL>entry.levelL?targetL:entry.levelL*0.86;
+            entry.levelR=targetR>entry.levelR?targetR:entry.levelR*0.86;
+            curL=entry.levelL;curR=entry.levelR;
+            // 0dB / Peak detection
+            if(ampL>=0.97)entry.peakHoldL=24;else if(entry.peakHoldL>0)entry.peakHoldL--;
+            if(ampR>=0.97)entry.peakHoldR=24;else if(entry.peakHoldR>0)entry.peakHoldR--;
+        }else{
+            entry.levelL*=0.78;entry.levelR*=0.78;
+            if(entry.peakHoldL>0)entry.peakHoldL--;if(entry.peakHoldR>0)entry.peakHoldR--;
+            curL=entry.levelL;curR=entry.levelR;
+        }
+
+        const barW=10,barL=2,barR=42;
+        const peakH=5,meterTop=11,meterH=80;
+        const segH=3,segGap=1,totalSegs=Math.floor((meterH+segGap)/(segH+segGap)); // 20 segments
+
+        // 1. Top Peak indicator
+        const peakL=entry.peakHoldL>0,peakR=entry.peakHoldR>0;
+        ctx.fillStyle=peakL?'#ef4444':'#fca5a535';ctx.fillRect(barL,2,barW,peakH);
+        ctx.fillStyle=peakR?'#ef4444':'#fca5a535';ctx.fillRect(barR,2,barW,peakH);
+
+        ctx.font='700 7px system-ui, -apple-system, sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.fillStyle=(peakL||peakR)?'#dc2626':'#94a3b8';ctx.fillText('PEAK',27,5);
+
+        // 2. dB scale steps and ticks: 0, -6, -12, -18, -24, -30, 무음(-36)
+        const steps=[
+            {db:0,label:'0',ratio:1.0,color:'#ef4444'},
+            {db:-6,label:'-6',ratio:30/36,color:'#f97316'},
+            {db:-12,label:'-12',ratio:24/36,color:'#eab308'},
+            {db:-18,label:'-18',ratio:18/36,color:'#5a7a4f'},
+            {db:-24,label:'-24',ratio:12/36,color:'#5a7a4f'},
+            {db:-30,label:'-30',ratio:6/36,color:'#5a7a4f'},
+            {db:-36,label:'무음',ratio:0.0,color:'#82927c'}
+        ];
+        ctx.font='500 8px system-ui, -apple-system, sans-serif';
+        for(const step of steps){
+            const y=meterTop+meterH*(1-step.ratio);
+            // Tick marks on inner edges
+            ctx.fillStyle='#94a3b880';
+            ctx.fillRect(barL+barW,Math.round(y)-1,2,1);
+            ctx.fillRect(barR-2,Math.round(y)-1,2,1);
+            // Label text in center
+            ctx.fillStyle=step.color;
+            ctx.fillText(step.label,27,Math.round(y));
+        }
+
+        // 3. Stereo Bars (L and R) with calibrated segments
+        for(let s=0;s<totalSegs;s++){
+            const segRatio=(totalSegs-1-s)/(totalSegs-1);
+            const y=meterTop+s*(segH+segGap);
+            let color='#22c55e'; // green (<= -18dB)
+            if(segRatio>=30/36)color='#ef4444'; // red (>= -6dB)
+            else if(segRatio>=24/36)color='#f97316'; // orange (-12dB ~ -6dB)
+            else if(segRatio>=18/36)color='#eab308'; // yellow (-18dB ~ -12dB)
+
+            // Left
+            ctx.fillStyle=curL>=segRatio?color:'#cbd5e138';
+            ctx.fillRect(barL,y,barW,segH);
+
+            // Right
+            ctx.fillStyle=curR>=segRatio?color:'#cbd5e138';
+            ctx.fillRect(barR,y,barW,segH);
+        }
+
+        // 4. Channel Labels at bottom
+        ctx.font='700 9px system-ui, -apple-system, sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';
+        ctx.fillStyle='#47613e';
+        ctx.fillText('L',barL+barW/2,h);
+        ctx.fillText('R',barR+barW/2,h);
+    }
     function start(entry){
-        if(entry.disposed||entry.audio.paused||mode==='off'||!entry.audio.closest('details')?.open)return;
+        if(entry.disposed||entry.audio.paused||!entry.audio.closest('details')?.open)return;
         if(entry.frame)return;
         const tick=now=>{
             entry.frame=0;
-            if(entry.disposed||entry.audio.paused||entry.audio.ended||mode==='off'||document.hidden||!entry.audio.closest('details')?.open)return;
-            if(now-entry.last>33){draw(entry);entry.last=now;}
+            if(entry.disposed||entry.audio.paused||entry.audio.ended||document.hidden||!entry.audio.closest('details')?.open){
+                drawMeter(entry,true);return;
+            }
+            if(now-entry.last>33){draw(entry);drawMeter(entry);entry.last=now;}
             if(!reduceMotion.matches)entry.frame=requestAnimationFrame(tick);
         };
         entry.frame=requestAnimationFrame(tick);
@@ -120,21 +248,28 @@
         for(const audio of root.querySelectorAll('.audio-player audio')){
             const entry=entries.get(audio);if(!entry)continue;
             audio.pause();entry.disposed=true;cancelAnimationFrame(entry.frame);entry.resize.disconnect();
-            entry.source?.disconnect();entry.analyser?.disconnect();entries.delete(audio);
+            entry.source?.disconnect();entry.analyser?.disconnect();
+            entry.splitter?.disconnect();entry.analyserL?.disconnect();entry.analyserR?.disconnect();
+            entries.delete(audio);
         }
     }
     document.getElementById('jobs').addEventListener('toggle',event=>{
-        if(event.target.matches('.result-disclosure')&&event.target.open){const entry=entries.get(event.target.querySelector('audio'));if(entry){draw(entry);start(entry);}}
+        if(event.target.matches('.result-disclosure')&&event.target.open){
+            const entry=entries.get(event.target.querySelector('audio'));
+            if(entry){draw(entry);drawMeter(entry);start(entry);}
+        }
     },true);
     document.addEventListener('visibilitychange',()=>{
         for(const audio of document.querySelectorAll('.audio-player audio')){
             const entry=entries.get(audio);if(!entry)continue;
-            cancelAnimationFrame(entry.frame);entry.frame=0;if(!document.hidden)start(entry);
+            cancelAnimationFrame(entry.frame);entry.frame=0;
+            if(!document.hidden){drawMeter(entry);start(entry);}
         }
     });
     reduceMotion.addEventListener('change',()=>{
         document.querySelectorAll('.audio-player audio').forEach(audio=>{
-            const entry=entries.get(audio);if(!entry)return;cancelAnimationFrame(entry.frame);entry.frame=0;draw(entry);start(entry);
+            const entry=entries.get(audio);if(!entry)return;cancelAnimationFrame(entry.frame);entry.frame=0;
+            draw(entry);drawMeter(entry);start(entry);
         });
     });
     window.AudioSpectrum={markup,attach,prepare,release};
