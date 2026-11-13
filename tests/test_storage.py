@@ -32,3 +32,34 @@ class StorageTests(unittest.TestCase):
         with patch.object(storage,'STORAGE',Path('/Volumes/ReadOnly/SoriSoop Data')),patch.object(Path,'mkdir',side_effect=PermissionError('read-only')):
             with self.assertRaises(RuntimeError) as error:storage.prepare()
             self.assertIn(str(storage.STORAGE),str(error.exception))
+
+    def test_clean_session_caches_removes_transient_files_and_preserves_audio_wav(self):
+        with tempfile.TemporaryDirectory() as folder:
+            data = Path(folder)
+            audio = data / 'audio'
+            jobs = data / 'jobs'
+            audio.mkdir()
+            jobs.mkdir()
+            wav = audio / 'song.wav'
+            wav.write_bytes(b'RIFF....WAVE')
+            mp3 = audio / 'song.mp3'
+            mp3.write_bytes(b'ID3....')
+            tmp_audio = audio / 'partial.tmp'
+            tmp_audio.write_text('tmp')
+            work_dir = audio / 'song-work'
+            work_dir.mkdir()
+            (work_dir / 'chunk.bin').write_bytes(b'123')
+            tmp_job = jobs / 'job.tmp'
+            tmp_job.write_text('tmp')
+            job_json = jobs / 'job.json'
+            job_json.write_text('{"id":"job"}')
+
+            storage.clean_session_caches(data)
+
+            self.assertTrue(wav.is_file())
+            self.assertTrue(job_json.is_file())
+            self.assertFalse(mp3.exists())
+            self.assertFalse(tmp_audio.exists())
+            self.assertFalse(work_dir.exists())
+            self.assertFalse(tmp_job.exists())
+

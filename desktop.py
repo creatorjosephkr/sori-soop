@@ -34,6 +34,9 @@ def configure(testing=False):
     os.environ.setdefault('DO_NOT_TRACK','1')
     from app_paths import DATA
     DATA.mkdir(parents=True,exist_ok=True)
+    if not testing:
+        from storage import clean_session_caches
+        clean_session_caches(DATA)
     if getattr(sys,'frozen',False) and not testing:
         sys.stdout=(DATA/'desktop.log').open('a',encoding='utf-8',buffering=1)
         sys.stderr=sys.stdout
@@ -79,9 +82,23 @@ def window_geometry(screens):
     return width,height,(min(1100,width),min(760,height))
 
 
-def configure_webview_context_menu():
+def configure_webview_platform():
     try:
         from webview.platforms import cocoa
+        from Foundation import YES
+        # Terminate application when the last window is closed on macOS
+        cocoa.BrowserView.AppDelegate.applicationShouldTerminateAfterLastWindowClosed_ = lambda self, app: YES
+
+        orig_windowWillClose_ = cocoa.BrowserView.WindowDelegate.windowWillClose_
+        def patched_windowWillClose_(self, notification):
+            orig_windowWillClose_(self, notification)
+            if cocoa.BrowserView.instances == {}:
+                try:
+                    cocoa.BrowserView.app.terminate_(self)
+                except Exception:
+                    pass
+        cocoa.BrowserView.WindowDelegate.windowWillClose_ = patched_windowWillClose_
+
         def patched_willOpenMenu(self, menu, event):
             if cocoa._state.get('debug'):
                 return
@@ -148,7 +165,7 @@ def run(args,root,data):
             with urllib.request.urlopen(url+'/audio/'+ident+'.mp3') as response:
                 assert response.headers['Content-Type']=='audio/mpeg'
                 encoded=response.read()
-                assert len(encoded)>100 and encoded[0]==255 and encoded[1]&224==224
+                assert len(encoded)>100 and (encoded.startswith(b'ID3') or (encoded[0]==255 and encoded[1]&224==224))
             engine.delete_result(ident)
             result={'ok':True,'mode':'packaged-server','resources':True,'mp3Export':True,'firstRunReady':True,'uv':True,'portCollisionHandled':int(url.rsplit(':',1)[1])!=preferred}
         elif args.generation_test:
@@ -159,13 +176,24 @@ def run(args,root,data):
             installer.run('bootstrap-check')
             result={'ok':True,'mode':'first-run-bootstrap','bundledPython':True,'copyBasedVenv':True,'offlinePackageInstall':True,'noManagedLinks':True,'noConsoleWindow':True}
         else:
-            configure_webview_context_menu()
+            configure_webview_platform()
             import webview
             webview.settings['ALLOW_DOWNLOADS']=True
             webview.settings['OPEN_EXTERNAL_LINKS_IN_BROWSER']=True
             width,height,minimum=window_geometry(webview.screens)
             window=webview.create_window('소리숲',url,width=width,height=height,min_size=minimum,hidden=args.smoke_ui,maximized=not args.smoke_ui and (width<1600 or height<1080),background_color='#f6f7f3',text_select=True)
             app.EXIT_HOOK=lambda:window.destroy()
+
+            def on_closed():
+                from storage import clean_session_caches
+                clean_session_caches(data)
+                if not args.smoke_ui:
+                    def watchdog():
+                        time.sleep(1.0)
+                        os._exit(0)
+                    threading.Thread(target=watchdog, daemon=True).start()
+
+            window.events.closed += on_closed
             if args.smoke_ui:
                 def check():
                     try:
@@ -187,6 +215,8 @@ def run(args,root,data):
             while engine.ACTIVE and time.monotonic()<deadline:time.sleep(.05)
         session_context.__exit__(None,None,None)
         if reserved:reserved.close()
+        from storage import clean_session_caches
+        clean_session_caches(data)
 
 def main():
     parser=argparse.ArgumentParser()
@@ -205,6 +235,8 @@ def main():
         if not testing:notify_error(str(error)+'\n\n진단 로그: '+str(data/'desktop.log'))
         return 1
     finally:
+        from storage import clean_session_caches
+        clean_session_caches(data)
         if testing:
             import shutil
             shutil.rmtree(data,ignore_errors=True)
@@ -212,4 +244,8 @@ def main():
 if __name__=='__main__':
     import multiprocessing
     multiprocessing.freeze_support()
-    raise SystemExit(main())
+    code = main()
+    testing = any(arg in sys.argv for arg in ('--self-test', '--smoke-ui', '--bootstrap-test', '--generation-test'))
+    if not testing:
+        os._exit(code)
+    raise SystemExit(code)

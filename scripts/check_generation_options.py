@@ -36,9 +36,9 @@ def check():
     assert(rejects(()=>api.prompt('a'.repeat(2000))),'combined length limit');
     assert(rejects(()=>api.prompt('')),'description required');
     api.render('bgm',false);assert(api.negative()==='vocals, singing, speech'&&$('music-bpm').value==='','mode restoration');
-    api.render('sfx',false);assert($('tempo-options').hidden&&$('negative-options').querySelectorAll('input').length===9,'sfx scope');assert(api.negative()===''&&[...$('negative-options').querySelectorAll('input')].every(input=>!input.checked),'sfx defaults off');
+    api.render('sfx',false);assert($('tempo-options').hidden&&$('negative-options').querySelectorAll('input').length===11,'sfx scope');assert(api.negative().includes('music, melody')&&[...$('negative-options').querySelectorAll('input')].every(input=>input.checked),'sfx defaults on');
     api.reset();api.render('bgm',false);assert($('negative-options').querySelectorAll('input:checked').length===14&&$('music-bpm').value==='','reset restores bgm defaults');
-    assert(api.negative('song').includes('gibberish')&&api.negative('sfx')==='','defaults for unvisited types');
+    assert(api.negative('song').includes('gibberish')&&api.negative('sfx').includes('music, melody'),'defaults for unvisited types');
     return 'All generation option interaction checks passed';
  })()''')
  except Exception as error:result['error']=str(error)

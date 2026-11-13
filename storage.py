@@ -34,3 +34,37 @@ def prepare():
                            '해당 폴더의 쓰기 권한과 드라이브 연결을 확인한 뒤 다시 시도해 주세요. '
                            '저장 위치: '+str(STORAGE)) from error
     configure_caches()
+
+
+def clean_session_caches(data):
+    """Remove transient export caches (*.mp3, *.tmp, *-work) while preserving original audio (*.wav) and jobs."""
+    try:
+        data = Path(data)
+        audio_dir = data / 'audio'
+        if audio_dir.is_dir():
+            for mp3 in audio_dir.glob('*.mp3'):
+                try:
+                    mp3.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            for tmp in audio_dir.glob('*.tmp'):
+                try:
+                    tmp.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            for work in audio_dir.glob('*-work'):
+                try:
+                    import shutil
+                    shutil.rmtree(work, ignore_errors=True)
+                except OSError:
+                    pass
+        jobs_dir = data / 'jobs'
+        if jobs_dir.is_dir():
+            for tmp in jobs_dir.glob('*.tmp'):
+                try:
+                    tmp.unlink(missing_ok=True)
+                except OSError:
+                    pass
+    except Exception:
+        pass
+

@@ -64,6 +64,41 @@ class Mp3ExportTests(unittest.TestCase):
                 self.assertTrue((self.root/'trash'/ident/target.name).is_file())
                 with self.assertRaises(FileNotFoundError):engine.export_mp3(ident)
 
+    def test_mp3_and_wav_metadata_and_rename_update(self):
+        import soundfile as sf
+        from audio_processing import apply_wav_metadata
+        ident = '9'*32
+        engine.save({'id': ident, 'title': '나의 첫 노래', 'status': 'completed', 'createdAt': 1, 'settings': {'mode': 'song'}})
+        source = self.root/'audio'/(ident+'.wav')
+        sample_wav(source, 2, 48000)
+        apply_wav_metadata(source, title='나의 첫 노래')
+
+        with sf.SoundFile(str(source)) as wav_f:
+            self.assertEqual(wav_f.title, '나의 첫 노래')
+            self.assertEqual(wav_f.artist, '소리숲 (Sori Soop)')
+            self.assertIn('소리숲 (Sori Soop)', wav_f.software)
+            self.assertTrue(wav_f.comment.startswith('소리숲 제작:'))
+            self.assertIn('크리에이터 요셉', wav_f.comment)
+            self.assertIn('https://blog.naver.com/josephk1010', wav_f.comment)
+        self.assertIn(b'id3 ', source.read_bytes())
+
+        target = engine.export_mp3(ident)
+        with sf.SoundFile(str(target)) as mp3_f:
+            self.assertEqual(mp3_f.title, '나의 첫 노래')
+            self.assertEqual(mp3_f.artist, '소리숲 (Sori Soop)')
+            self.assertTrue(mp3_f.comment.startswith('소리숲 제작:'))
+            self.assertIn('크리에이터 요셉', mp3_f.comment)
+            self.assertIn('https://blog.naver.com/josephk1010', mp3_f.comment)
+
+        engine.rename_result(ident, '수정된 노래 제목')
+        self.assertFalse(target.exists())
+        with sf.SoundFile(str(source)) as wav_f:
+            self.assertEqual(wav_f.title, '수정된 노래 제목')
+
+        new_target = engine.export_mp3(ident)
+        with sf.SoundFile(str(new_target)) as mp3_f:
+            self.assertEqual(mp3_f.title, '수정된 노래 제목')
+
     def test_failed_conversion_is_atomic_and_retryable(self):
         ident = 'd'*32
         source = self.make_result(ident)
@@ -103,3 +138,14 @@ class Mp3ExportTests(unittest.TestCase):
                 error.exception.close()
         finally:
             server.shutdown();server.server_close()
+
+    def test_open_folder_api_and_resolution(self):
+        ident = '7'*32
+        source = self.make_result(ident)
+        with patch('app.reveal_file') as mock_reveal:
+            res = app.open_result_folder(ident)
+            self.assertTrue(res['ok'])
+            mock_reveal.assert_called_once()
+        with self.assertRaises(ValueError):
+            app.open_result_folder('bad_id')
+

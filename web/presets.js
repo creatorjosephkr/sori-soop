@@ -48,7 +48,21 @@
             ['vibrato','은은한 비브라토','subtle natural vibrato on sustained notes, controlled and expressive singing'],
             ['harmony','부드러운 화음/코러스','gentle supporting vocal harmonies, clear lead vocal and restrained backing vocals']
         ]},
-        sfxCategory:{label:'효과음 종류',sfxOnly:true,items:[
+        sfxVideo:{label:'영상 편집 효과음 (시간 자동 설정)',sfxOnly:true,items:[
+            ['whoosh','화면 전환 슉 (2초)','fast cinematic whoosh swoosh sound effect, clean air transition, swift camera pan movement',2],
+            ['pop','자막 팝업 뿅 (2초)','cute cartoon pop bubble sound effect, clean wooden plop, cheerful bright UI notification',2],
+            ['impact','화면 강조 쿵 (3초)','powerful cinematic hit impact boom sound effect, deep bass resonance, dramatic sub drop punch',3],
+            ['click','마우스 클릭 (2초)','clean mechanical mouse click and digital tap sound effect, crisp modern UI interaction',2],
+            ['camera','카메라 셔터 (2초)','vintage mechanical SLR camera shutter click and flash sound effect, crisp snapshot foley',2],
+            ['ding','정답·알림 띵동 (3초)','bright cheerful success chime bell ding sound effect, clean correct answer quiz notification',3],
+            ['buzzer','오답 삐익 (2초)','game show wrong answer buzzer sound effect, comical error fail beep, distinct punchy tone',2],
+            ['typing','키보드 타자음 (6초)','fast rhythmic mechanical keyboard typing sound effect, crisp key clacks, steady typing pace',6],
+            ['paper','종이 넘김 (2초)','crisp book page turn, clean paper flip rustle sound effect, realistic foley',2],
+            ['scratch','레코드 스크래치·반전 (2초)','vinyl record scratch needle stop sound effect, comical sudden stop and record pause',2],
+            ['riser','긴장감 고조 라이저 (5초)','cinematic tension riser sound effect, suspenseful rising swell building up to climax',5],
+            ['applause','환호와 박수 (6초)','enthusiastic audience applause and cheering, warm crowd clapping reaction',6]
+        ]},
+        sfxCategory:{label:'일반 효과음 종류',sfxOnly:true,items:[
             ['nature','자연/날씨 환경음','natural weather and outdoor ambience, organic rain, wind and nature soundscape'],
             ['foley','일상/실내 폴리 효과음','crisp everyday foley sound effect, close-up object interaction and realistic texture'],
             ['footsteps','발자국/움직임 소리','clear footsteps and movement foley, realistic surface contact sound'],
@@ -68,7 +82,48 @@
     const fields=document.getElementById('preset-fields');
     const status=document.getElementById('preset-status');
     const selected=Object.fromEntries(Object.keys(data).map(key=>[key,'']));
-    let currentMode='bgm',appliedBlock='';
+    let currentMode='bgm',appliedBlock='',appliedTitle='';
+    const titleInput=document.getElementById('track-title');
+    if(titleInput){
+        titleInput.addEventListener('input',()=>{
+            if(titleInput.value.trim()!==appliedTitle)appliedTitle='';
+        });
+    }
+    function determineSfxTitle(){
+        if(currentMode!=='sfx')return '';
+        if(selected.sfxVideo){
+            const match=data.sfxVideo.items.find(item=>item[0]===selected.sfxVideo);
+            if(match)return match[1].replace(/\s*\(\d+초\)/,'').trim();
+        }
+        if(selected.sfxCategory){
+            const match=data.sfxCategory.items.find(item=>item[0]===selected.sfxCategory);
+            if(match)return match[1].trim();
+        }
+        return '';
+    }
+    function syncSfxTitle(){
+        if(currentMode!=='sfx')return;
+        const titleEl=document.getElementById('track-title');
+        if(!titleEl)return;
+        const newTitle=determineSfxTitle();
+        if(!titleEl.value.trim()||titleEl.value.trim()===appliedTitle){
+            titleEl.value=newTitle;
+            appliedTitle=newTitle;
+            titleEl.dispatchEvent(new Event('input',{bubbles:true}));
+        }
+    }
+    function applyDuration(sec){
+        if(!sec)return;
+        const slider=document.getElementById('seconds');
+        const numberInput=document.getElementById('seconds-number');
+        if(!slider)return;
+        const minSec=Number(slider.min)||1;
+        const maxSec=Number(slider.max)||120;
+        const clamped=Math.max(minSec,Math.min(maxSec,sec));
+        slider.value=clamped;
+        if(numberInput)numberInput.value=clamped;
+        slider.dispatchEvent(new Event('input',{bubbles:true}));
+    }
     for(const [key,group] of Object.entries(data)){
         const field=document.createElement('div');field.className='preset-field';field.dataset.presetGroup=key;
         const label=document.createElement('label');label.htmlFor='preset-'+key;label.textContent=group.label;
@@ -78,6 +133,13 @@
         select.onchange=()=>{
             const old=selected[key];selected[key]=select.value;
             if(!compose()){selected[key]=old;select.value=old;}
+            else{
+                if(select.value&&group.items){
+                    const match=group.items.find(item=>item[0]===select.value);
+                    if(match&&typeof match[3]==='number')applyDuration(match[3]);
+                }
+                syncSfxTitle();
+            }
         };
         field.append(label,select);fields.append(field);
     }
@@ -88,7 +150,10 @@
             if(group.musicOnly&&currentMode==='sfx')continue;
             if(group.sfxOnly&&currentMode!=='sfx')continue;
             const item=group.items.find(item=>item[0]===selected[key]);
-            if(item)result.push(currentMode==='song'?item[2]:(item[3]||item[2]));
+            if(item){
+                const text=group.sfxOnly?item[2]:(currentMode==='song'?item[2]:(item[3]||item[2]));
+                result.push(text);
+            }
         }
         if(result.length&&currentMode==='bgm')result.push('instrumental, no vocals');
         if(result.length&&currentMode==='sfx')result.push('high quality sound effect, no music, no vocals');
@@ -101,8 +166,10 @@
             const hidden=(group.vocalOnly&&currentMode!=='song')||(group.musicOnly&&currentMode==='sfx')||(group.sfxOnly&&currentMode!=='sfx');
             select.parentElement.hidden=hidden;select.disabled=hidden;
         }
-        const shortcuts=currentMode==='sfx'?[['nature','자연/날씨'],['foley','일상/폴리'],['scifi','SF/기계음']]:[['lofi','로파이'],['ambient','앰비언트'],['acoustic','어쿠스틱/인디']];
-        const shortcutKey=currentMode==='sfx'?'sfxCategory':'genre';
+        const shortcuts=currentMode==='sfx'
+            ?[['whoosh','화면전환 슉 (2초)'],['pop','자막 팝업 (2초)'],['impact','화면 강조 (3초)']]
+            :[['lofi','로파이'],['ambient','앰비언트'],['acoustic','어쿠스틱/인디']];
+        const shortcutKey=currentMode==='sfx'?'sfxVideo':'genre';
         document.querySelectorAll('[data-preset-genre]').forEach((button,index)=>{
             const [val,label]=shortcuts[index]||shortcuts[0];
             button.dataset.presetGenre=val;button.textContent=label;
@@ -110,15 +177,24 @@
         });
         const summary=document.querySelector('.prompt-presets>summary');
         if(summary)summary.textContent=currentMode==='sfx'?'효과음 스타일 프리셋':'음악 스타일 프리셋';
+        if(currentMode==='sfx'){
+            const details=document.querySelector('.prompt-presets');
+            if(details)details.open=true;
+        }
         document.getElementById('preset-mode-help').textContent=currentMode==='song'
             ?'항목별로 하나씩 조합하세요. 템포와 창법은 함께 선택할 수 있습니다.'
             :currentMode==='sfx'
-            ?'효과음 종류와 공간감을 조합해 설명에 추가할 수 있습니다.'
+            ?'영상 편집 효과음 프리셋을 선택하면 최적의 생성 시간이 자동으로 설정됩니다.'
             :'배경음악에서는 보컬 음색과 창법을 제외한 연주용 표현을 입력합니다.';
     }
     function updateStatus(message='',isError=false){
         const max=2000;
-        status.textContent=message||`음악 설명 ${input.value.length} / ${max}자 · 직접 쓴 설명도 유지됩니다.`;
+        let note='';
+        if(currentMode==='sfx'&&selected.sfxVideo){
+            const match=data.sfxVideo.items.find(item=>item[0]===selected.sfxVideo);
+            if(match&&typeof match[3]==='number')note=` · ${match[1]} (${match[3]}초 자동 설정)`;
+        }
+        status.textContent=message||(`설명 ${input.value.length} / ${max}자 · 직접 쓴 설명도 유지됩니다.`+note);
         status.classList.toggle('preset-error',input.value.length>max||isError);
     }
     function compose(allowOverLimit=false){
@@ -139,22 +215,38 @@
         }else updateStatus();
     });
     document.querySelectorAll('[data-preset-genre]').forEach(button=>button.onclick=()=>{
-        const key=currentMode==='sfx'?'sfxCategory':'genre';
+        const key=currentMode==='sfx'?'sfxVideo':'genre';
         const old=selected[key];selected[key]=old===button.dataset.presetGenre?'':button.dataset.presetGenre;
         if(!compose()){selected[key]=old;refreshFields();}
+        else{
+            if(selected[key]&&data[key]?.items){
+                const match=data[key].items.find(item=>item[0]===selected[key]);
+                if(match&&typeof match[3]==='number')applyDuration(match[3]);
+            }
+            syncSfxTitle();
+        }
     });
     document.getElementById('clear-presets').onclick=()=>{
-        Object.keys(selected).forEach(key=>selected[key]='');compose(true);
+        Object.keys(selected).forEach(key=>selected[key]='');compose(true);syncSfxTitle();
     };
     window.MusicPresets={
-        snapshot(){return {selected:{...selected},appliedBlock,currentMode};},
+        snapshot(){return {selected:{...selected},appliedBlock,currentMode,appliedTitle};},
         restore(saved,mode){
             Object.keys(selected).forEach(key=>selected[key]=saved?.selected?.[key]||'');
             appliedBlock=saved?.appliedBlock||'';currentMode=saved?.currentMode||mode;
+            appliedTitle=saved?.appliedTitle||'';
             refreshFields();updateStatus();
         },
-        setMode(mode){if(mode===currentMode)return;currentMode=mode;compose(true);},
-        reset(){appliedBlock='';Object.keys(selected).forEach(key=>selected[key]='');refreshFields();updateStatus();}
+        setMode(mode){
+            if(mode===currentMode)return;
+            currentMode=mode;
+            if(currentMode==='sfx'){
+                const details=document.querySelector('.prompt-presets');
+                if(details)details.open=true;
+            }
+            compose(true);
+        },
+        reset(){appliedBlock='';appliedTitle='';Object.keys(selected).forEach(key=>selected[key]='');refreshFields();updateStatus();syncSfxTitle();}
     };
     refreshFields();updateStatus();
 })();

@@ -24,11 +24,15 @@
         ['slurred pronunciation','불분명한 발음','가사를 뭉개거나 흐리게 발음하는 현상을 줄입니다.'],
         ['gibberish','의미 없는 발성','가사 대신 알아듣기 어려운 말을 부르는 현상을 줄입니다.']
     ];
+    const sfx=[
+        ['music, melody, rhythm, beat','음악·멜로디·비트','효과음에 음악적 멜로디, 악기 반주, 리듬이 섞이는 것을 방지합니다.'],
+        ['vocals, singing, speech, talking','보컬·음성·말소리','효과음에 가창이나 사람의 말소리, 옹알거림이 섞이는 것을 방지합니다.']
+    ];
     const drafts={};
     let key='bgm';
-    function options(type){return [...common,...(type==='sfx'?[]:music),...(type==='song'?vocal:type==='sfx'?[]:instrumental)];}
+    function options(type){return type==='sfx'?[...sfx,...common]:[...common,...music,...(type==='song'?vocal:instrumental)];}
     function draft(type=key){
-        const defaults=options(type).filter(()=>type!=='sfx').map(([value])=>value);
+        const defaults=options(type).map(([value])=>value);
         return drafts[type]||(drafts[type]={negative:new Set(defaults),bpm:'',custom:'',customNegative:''});
     }
     function negative(type=key){

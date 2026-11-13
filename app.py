@@ -1,22 +1,24 @@
 import json
-import engine
-import translation
-import exaone_lyrics
-import installer
-import updates
-import song_duration
-import song_expert
-import wave
-from app_paths import background_options
-from audio_processing import validate_peak_db
 import os
 import platform
+import re
 import shutil
 import subprocess
 import threading
 import time
+import wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+
+import engine
+import exaone_lyrics
+import installer
+import song_duration
+import song_expert
+import translation
+import updates
+from app_paths import background_options
+from audio_processing import validate_peak_db
 
 ROOT = Path(__file__).resolve().parent
 DATA = Path(os.environ.get('LOCAL_MUSIC_DATA', str(Path.home() / '.local-music-studio')))
@@ -33,6 +35,71 @@ def open_external(url):
         os.startfile(url)
     else:
         subprocess.run(['open' if system == 'Darwin' else 'xdg-open', url], check=True, timeout=10)
+
+
+def reveal_file(path):
+    path = Path(path).resolve()
+    system = platform.system()
+    if system == 'Darwin':
+        if path.is_file():
+            subprocess.Popen(['open', '-R', str(path)])
+        else:
+            subprocess.Popen(['open', str(path)])
+    elif system == 'Windows':
+        if path.is_file():
+            subprocess.Popen(['explorer', f'/select,{path}'])
+        else:
+            os.startfile(str(path))
+    else:
+        subprocess.Popen(['xdg-open', str(path if path.is_dir() else path.parent)])
+
+
+def open_result_folder(ident):
+    if not isinstance(ident, str) or not re.fullmatch(r'[a-f0-9]{32}', ident):
+        raise ValueError('잘못된 생성 결과 ID입니다.')
+    record = DATA / 'jobs' / f'{ident}.json'
+    title = ''
+    if record.is_file():
+        try:
+            job = json.loads(record.read_text('utf-8'))
+            title = (job.get('title') or job.get('prompt') or '').strip()
+        except Exception:
+            pass
+
+    import unicodedata
+    candidates = [
+        Path.home() / 'Downloads',
+        Path.home() / 'Music',
+        Path.home() / 'Desktop',
+    ]
+    target_file = None
+    title_nfc = unicodedata.normalize('NFC', title) if title else ''
+
+    for folder in candidates:
+        if folder.is_dir():
+            for ext in ('.mp3', '.wav'):
+                for p in folder.glob(f'*{ext}'):
+                    p_nfc = unicodedata.normalize('NFC', p.name)
+                    if (title_nfc and title_nfc in p_nfc) or (ident in p.name):
+                        target_file = p
+                        break
+                if target_file:
+                    break
+        if target_file:
+            break
+
+    if target_file and target_file.is_file():
+        reveal_file(target_file)
+        return {'ok': True, 'path': str(target_file)}
+
+    internal_wav = DATA / 'audio' / f'{ident}.wav'
+    if internal_wav.is_file():
+        reveal_file(internal_wav)
+        return {'ok': True, 'path': str(internal_wav)}
+
+    downloads = Path.home() / 'Downloads'
+    reveal_file(downloads if downloads.is_dir() else Path.home())
+    return {'ok': True, 'path': str(downloads if downloads.is_dir() else Path.home())}
 
 EXIT_HOOK = None
 
@@ -252,16 +319,23 @@ class Handler(BaseHTTPRequestHandler):
             import re
             if not re.fullmatch(r'/audio/[a-f0-9]{32}\.(?:wav|mp3)', self.path):
                 return self.reply({'error': '잘못된 파일 경로'}, 404)
-            path = engine.DATA / 'audio' / self.path.rsplit('/', 1)[1]
-            if path.suffix == '.mp3':
+            ident = self.path[7:39]
+            if self.path.endswith('.mp3'):
                 try:
-                    path = engine.export_mp3(path.stem)
+                    path = engine.export_mp3(ident)
                 except FileNotFoundError:
                     return self.reply({'error': '파일을 찾을 수 없습니다.'}, 404)
                 except (ValueError, wave.Error) as error:
                     return self.reply({'error': str(error)}, 400)
                 except Exception:
                     return self.reply({'error': 'MP3 변환에 실패했습니다. 다시 시도하거나 WAV로 다운로드해 주세요.'}, 503)
+            else:
+                try:
+                    path = engine.prepare_wav(ident)
+                except FileNotFoundError:
+                    return self.reply({'error': '파일을 찾을 수 없습니다.'}, 404)
+                except Exception:
+                    path = engine.DATA / 'audio' / f'{ident}.wav'
             if not path.exists():
                 return self.reply({'error': '파일을 찾을 수 없습니다.'}, 404)
             return self.serve_audio(path)
@@ -363,6 +437,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply({'error': str(e)}, 400)
             except OSError:
                 return self.reply({'error': '제목을 저장할 수 없습니다. 다시 시도해 주세요.'}, 500)
+        if self.path == '/api/open-folder':
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 4096:
+                    raise ValueError('잘못된 요청 크기입니다.')
+                body = json.loads(self.rfile.read(length))
+                if not isinstance(body, dict):
+                    raise ValueError('잘못된 요청입니다.')
+                return self.reply(open_result_folder(body.get('id')))
+            except ValueError as e:
+                return self.reply({'error': str(e)}, 400)
+            except Exception as e:
+                return self.reply({'error': f'폴더를 열지 못했습니다: {e}'}, 500)
         if self.path == '/api/trash/empty':
             try:
                 length = int(self.headers.get('Content-Length', '0'))

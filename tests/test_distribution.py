@@ -42,6 +42,12 @@ class DistributionTests(unittest.TestCase):
     def test_ui_and_release_version_match(self):
         root=Path(__file__).resolve().parent.parent;version=(root/'VERSION').read_text(encoding='utf-8').strip()
         self.assertIn('v'+version+'</small>',(root/'web/index.html').read_text(encoding='utf-8'))
+    def test_audio_download_filename_prefix(self):
+        root=Path(__file__).resolve().parent.parent
+        app_js=(root/'web/app.js').read_text(encoding='utf-8')
+        self.assertIn("const filename=baseName.startsWith('SoriSoop_')?baseName:('SoriSoop_'+baseName);", app_js)
+        self.assertIn('download="${escapeHTML(filename)}.wav"', app_js)
+        self.assertIn('download="${escapeHTML(filename)}.mp3"', app_js)
 
 class InstallerTests(unittest.TestCase):
     def test_only_known_components_and_no_install_during_generation(self):

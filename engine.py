@@ -52,7 +52,48 @@ def save(job):
     tmp.write_text(json.dumps(job, ensure_ascii=False), encoding='utf-8')
     tmp.replace(target)
 
+MIGRATED = False
+
+def migrate_legacy_audio():
+    global MIGRATED
+    if MIGRATED:
+        return
+    MIGRATED = True
+    audio_dir = DATA / 'audio'
+    if not audio_dir.is_dir():
+        return
+    marker = '소리숲 제작'.encode('utf-16-le')
+    for wav_path in audio_dir.glob('*.wav'):
+        ident = wav_path.stem
+        if not re.fullmatch(r'[a-f0-9]{32}', ident):
+            continue
+        try:
+            raw = wav_path.read_bytes()
+            if b'id3 ' not in raw or b'INFO' not in raw or marker not in raw:
+                title = ''
+                rec = DATA / 'jobs' / f'{ident}.json'
+                if rec.is_file():
+                    try:
+                        j = json.loads(rec.read_text(encoding='utf-8'))
+                        title = (j.get('title') or j.get('prompt') or '').strip()
+                    except Exception:
+                        pass
+                from audio_processing import apply_wav_metadata
+                apply_wav_metadata(wav_path, title=title)
+        except Exception:
+            pass
+    for mp3_path in audio_dir.glob('*.mp3'):
+        try:
+            raw = mp3_path.read_bytes()[:1024]
+            if not raw.startswith(b'ID3') or marker not in raw:
+                mp3_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
 def history():
+    global MIGRATED
+    if not MIGRATED:
+        threading.Thread(target=migrate_legacy_audio, daemon=True).start()
     result=[]
     for path in (DATA / 'jobs').glob('*.json'):
         try:
@@ -270,6 +311,8 @@ def run(job):
             job['outputPeakDb']=wav_peak_db(out)
             if job['outputPeakDb'] is not None and job['outputPeakDb'] > job['settings'].get('peakDb', -8) + 0.01:
                 raise ValueError('출력 최대 게인 검증에 실패했습니다.')
+            from audio_processing import apply_wav_metadata
+            apply_wav_metadata(out, title=job.get('title') or job.get('prompt'))
             job['status']='completed'; job['audioUrl']='/audio/'+job['id']+'.wav'
             job['durationSeconds']=round(duration,2)
             plan_path=DATA/'jobs'/(job['id']+'.plan.json')
@@ -318,7 +361,38 @@ def rename_result(ident, title):
         job = json.loads(record.read_text(encoding='utf-8'))
         job['title'] = title.strip()
         save(job)
+        audio = DATA / 'audio' / (ident + '.wav')
+        if audio.is_file():
+            from audio_processing import apply_wav_metadata
+            apply_wav_metadata(audio, title=job['title'])
+        mp3 = DATA / 'audio' / (ident + '.mp3')
+        mp3.unlink(missing_ok=True)
         return job
+
+def prepare_wav(ident):
+    if not isinstance(ident, str) or not re.fullmatch(r'[a-f0-9]{32}', ident):
+        raise ValueError('잘못된 생성 결과 ID입니다.')
+    with GUARD:
+        record = DATA / 'jobs' / (ident + '.json')
+        source = DATA / 'audio' / (ident + '.wav')
+        if not source.is_file():
+            raise FileNotFoundError('이미 삭제되었거나 존재하지 않는 결과입니다.')
+        title = ''
+        if record.is_file():
+            try:
+                job = json.loads(record.read_text(encoding='utf-8'))
+                title = (job.get('title') or job.get('prompt') or '').strip()
+            except (OSError, ValueError):
+                pass
+        try:
+            raw = source.read_bytes()
+            marker = '소리숲 제작'.encode('utf-16-le')
+            if b'id3 ' not in raw or b'INFO' not in raw or marker not in raw:
+                from audio_processing import apply_wav_metadata
+                apply_wav_metadata(source, title=title)
+        except Exception:
+            pass
+        return source
 
 def export_mp3(ident):
     if not isinstance(ident, str) or not re.fullmatch(r'[a-f0-9]{32}', ident):
@@ -333,9 +407,19 @@ def export_mp3(ident):
         job = json.loads(record.read_text(encoding='utf-8'))
         if job.get('status') != 'completed' or ident == ACTIVE:
             raise ValueError('생성이 완료된 결과만 MP3로 다운로드할 수 있습니다.')
-        if not target.is_file() or target.stat().st_mtime_ns < source.stat().st_mtime_ns or not target.stat().st_size:
+        title = (job.get('title') or job.get('prompt') or '').strip()
+        marker = '소리숲 제작'.encode('utf-16-le')
+        needs_build = not target.is_file() or target.stat().st_mtime_ns < source.stat().st_mtime_ns or not target.stat().st_size
+        if not needs_build:
+            try:
+                raw_head = target.read_bytes()[:1024]
+                if not raw_head.startswith(b'ID3') or marker not in raw_head:
+                    needs_build = True
+            except OSError:
+                needs_build = True
+        if needs_build:
             from audio_export import write_mp3
-            write_mp3(source, target)
+            write_mp3(source, target, title=title)
         return target
 
 
