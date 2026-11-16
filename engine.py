@@ -21,6 +21,95 @@ GUARD = threading.Lock()
 ACTIVE = None
 PROCESS = None
 CURRENT = None
+REFERENCE_AUDIO_EXTENSIONS = {'.wav', '.mp3', '.flac', '.ogg', '.opus', '.m4a'}
+REFERENCE_AUDIO_MAX_BYTES = 50 * 1024 * 1024
+REFERENCE_AUDIO_MAX_SELECTION = 2
+
+
+def reference_audio_dir():
+    return DATA / 'reference-audio'
+
+
+def _read_reference_meta(meta_path):
+    try:
+        meta = json.loads(meta_path.read_text(encoding='utf-8'))
+        ident = meta.get('id', '')
+        ext = meta.get('ext', '')
+        if not re.fullmatch(r'[a-f0-9]{32}', ident) or ext not in REFERENCE_AUDIO_EXTENSIONS:
+            return None
+        audio_path = meta_path.parent / f'{ident}{ext}'
+        if not audio_path.is_file():
+            return None
+        return {
+            'id': ident,
+            'name': str(meta.get('name') or f'{ident}{ext}'),
+            'ext': ext,
+            'size': int(meta.get('size') or audio_path.stat().st_size),
+            'createdAt': float(meta.get('createdAt') or audio_path.stat().st_mtime),
+            'audioUrl': f'/reference-audio/{ident}{ext}',
+        }
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def list_reference_audios():
+    folder = reference_audio_dir()
+    if not folder.is_dir():
+        return []
+    items = []
+    for meta_path in folder.glob('*.json'):
+        item = _read_reference_meta(meta_path)
+        if item:
+            items.append(item)
+    return sorted(items, key=lambda item: item['createdAt'], reverse=True)
+
+
+def save_reference_audio(filename, raw):
+    if not isinstance(raw, (bytes, bytearray)) or not raw:
+        raise ValueError('비어 있지 않은 오디오 파일을 선택하세요.')
+    if len(raw) > REFERENCE_AUDIO_MAX_BYTES:
+        raise ValueError('참조 오디오 파일은 50MB 이하만 등록할 수 있습니다.')
+    clean_name = Path(str(filename or '')).name.strip()[:120]
+    ext = Path(clean_name).suffix.lower()
+    if ext not in REFERENCE_AUDIO_EXTENSIONS:
+        raise ValueError('지원하는 오디오 형식(.wav, .mp3, .flac, .ogg, .opus, .m4a)만 등록할 수 있습니다.')
+    ident = uuid.uuid4().hex
+    folder = reference_audio_dir()
+    with GUARD:
+        folder.mkdir(parents=True, exist_ok=True)
+        audio_path = folder / f'{ident}{ext}'
+        audio_tmp = folder / f'{ident}{ext}.tmp'
+        audio_tmp.write_bytes(raw)
+        audio_tmp.replace(audio_path)
+        meta = {
+            'id': ident,
+            'name': clean_name or f'{ident}{ext}',
+            'ext': ext,
+            'size': len(raw),
+            'createdAt': time.time(),
+            'audioUrl': f'/reference-audio/{ident}{ext}',
+        }
+        meta_tmp = folder / f'{ident}.json.tmp'
+        meta_tmp.write_text(json.dumps(meta, ensure_ascii=False), encoding='utf-8')
+        meta_tmp.replace(folder / f'{ident}.json')
+    return meta
+
+
+def resolve_reference_audio_path(ident):
+    if not isinstance(ident, str) or not re.fullmatch(r'[a-f0-9]{32}', ident):
+        raise ValueError('잘못된 참조 오디오 ID입니다.')
+    meta_path = reference_audio_dir() / f'{ident}.json'
+    meta = _read_reference_meta(meta_path)
+    if not meta:
+        raise FileNotFoundError('선택한 참조 오디오를 찾을 수 없습니다.')
+    return reference_audio_dir() / f"{meta['id']}{meta['ext']}", meta
+
+
+def delete_reference_audio(ident):
+    path, meta = resolve_reference_audio_path(ident)
+    with GUARD:
+        path.unlink(missing_ok=True)
+        (reference_audio_dir() / f"{meta['id']}.json").unlink(missing_ok=True)
 
 def engine_paths(backend):
     folder = BASE / ('mlx' if backend == 'apple' else 'tflite')
@@ -111,7 +200,7 @@ def history():
             continue
     return sorted(result,key=lambda j:j['createdAt'],reverse=True)
 
-def start(settings, prompt, available=None, lyrics='', language='ko', title='', negative_prompt=''):
+def start(settings, prompt, available=None, lyrics='', language='ko', title='', negative_prompt='', reference_audio_id=None, reference_audio_ids=None):
     global ACTIVE, CURRENT
     settings={**settings, 'peakDb':validate_peak_db(settings.get('peakDb', -8))}
     if not isinstance(prompt,str) or not 1 <= len(prompt.strip()) <= 2000:
@@ -155,6 +244,28 @@ def start(settings, prompt, available=None, lyrics='', language='ko', title='', 
             raise ValueError('노래 가사를 1~4000자로 입력하세요.')
         if language not in ('ko', 'en', 'ja', 'zh', 'unknown'):
             raise ValueError('지원하는 보컬 언어를 선택하세요.')
+    if reference_audio_ids is not None:
+        if not isinstance(reference_audio_ids, list):
+            raise ValueError('참조 오디오 목록 형식이 올바르지 않습니다.')
+        requested_ref_ids = list(dict.fromkeys(item for item in reference_audio_ids if isinstance(item, str) and item))
+    elif reference_audio_id is not None and reference_audio_id != '':
+        requested_ref_ids = [reference_audio_id]
+    else:
+        requested_ref_ids = []
+    if len(requested_ref_ids) > REFERENCE_AUDIO_MAX_SELECTION:
+        raise ValueError(f'참조 오디오는 최대 {REFERENCE_AUDIO_MAX_SELECTION}개까지 선택할 수 있습니다.')
+    reference_audio_metas = []
+    reference_audio_paths = []
+    if requested_ref_ids:
+        if not song:
+            raise ValueError('참조 오디오는 노래 만들기 모드에서만 사용할 수 있습니다.')
+        for ref_id in requested_ref_ids:
+            try:
+                ref_path, ref_meta = resolve_reference_audio_path(ref_id)
+            except (ValueError, FileNotFoundError) as error:
+                raise ValueError('선택한 참조 오디오를 찾을 수 없습니다. 다시 등록해 주세요.') from error
+            reference_audio_paths.append(ref_path)
+            reference_audio_metas.append(ref_meta)
     if not ready(settings['backend'], settings['model']):
         raise ValueError('선택한 실행 방식의 엔진이 설치되지 않았습니다.')
     if settings['backend']=='apple' and not (platform.system()=='Darwin' and platform.machine()=='arm64'):
@@ -174,6 +285,15 @@ def start(settings, prompt, available=None, lyrics='', language='ko', title='', 
             job['negativePrompt']=negative_prompt.strip()
         if song:
             job.update(lyrics=lyrics.strip(), language=language, plannerRevision=(ROOT/'song-planner-version.txt').read_text(encoding='utf-8').strip())
+        if reference_audio_metas and reference_audio_paths:
+            job.update(
+                referenceAudioId=reference_audio_metas[0]['id'],
+                referenceAudioName=', '.join(meta['name'] for meta in reference_audio_metas),
+                referenceAudioPath=str(reference_audio_paths[0]),
+                referenceAudioIds=[meta['id'] for meta in reference_audio_metas],
+                referenceAudioNames=[meta['name'] for meta in reference_audio_metas],
+                referenceAudioPaths=[str(path) for path in reference_audio_paths],
+            )
         save(job); ACTIVE=ident; CURRENT=job
         threading.Thread(target=run,args=(job,),daemon=True).start()
     return job

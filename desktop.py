@@ -181,7 +181,7 @@ def run(args,root,data):
             webview.settings['ALLOW_DOWNLOADS']=True
             webview.settings['OPEN_EXTERNAL_LINKS_IN_BROWSER']=True
             width,height,minimum=window_geometry(webview.screens)
-            window=webview.create_window('소리숲',url,width=width,height=height,min_size=minimum,hidden=args.smoke_ui,maximized=not args.smoke_ui and (width<1600 or height<1080),background_color='#f6f7f3',text_select=True)
+            window=webview.create_window('소리숲',url,width=width,height=height,min_size=minimum,hidden=args.smoke_ui,maximized=False,background_color='#f6f7f3',text_select=True)
             app.EXIT_HOOK=lambda:window.destroy()
 
             def on_closed():

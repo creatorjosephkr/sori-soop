@@ -169,6 +169,28 @@ from acestep.handler import AceStepHandler
 from acestep.inference import GenerationParams, GenerationConfig, generate_music
 
 class LocalSongHandler(AceStepHandler):
+    def __init__(self, *args, extra_reference_audios=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.extra_reference_audios = list(extra_reference_audios or [])
+
+    def _prepare_reference_and_source_audio(self, *args, **kwargs):
+        refer_audios, processed_src_audio, audio_error = super()._prepare_reference_and_source_audio(*args, **kwargs)
+        if audio_error is not None:
+            return refer_audios, processed_src_audio, audio_error
+        for extra_audio in self.extra_reference_audios:
+            processed_extra = self.process_reference_audio(extra_audio)
+            if processed_extra is None:
+                return None, None, {
+                    'audios': [],
+                    'status_message': 'Reference audio is invalid, unreadable, or silent.',
+                    'extra_outputs': {},
+                    'success': False,
+                    'error': 'Invalid reference audio',
+                }
+            for batch_refs in refer_audios:
+                batch_refs.append(processed_extra)
+        return refer_audios, processed_src_audio, None
+
     def _prepare_text_conditioning_inputs(self, *args, **kwargs):
         original=self.text_tokenizer
         class CheckedTokenizer:
@@ -209,7 +231,13 @@ class LocalSongHandler(AceStepHandler):
                 self.dtype = torch.float32
         return super()._load_main_model_from_checkpoint(**kwargs)
 
-handler=LocalSongHandler()
+reference_audios=list(job.get('referenceAudioPaths') or ([job['referenceAudioPath']] if job.get('referenceAudioPath') else []))
+for ref_path in reference_audios:
+    if not Path(ref_path).is_file():
+        message='선택한 참조 오디오 파일을 찾을 수 없습니다. 다시 등록해 주세요.'
+        input_check_path.write_text(json.dumps({'ok':False,'error':message},ensure_ascii=False),encoding='utf-8')
+        raise RuntimeError(message)
+handler=LocalSongHandler(extra_reference_audios=reference_audios[1:])
 stage('노래 모델을 메모리에 불러오고 있습니다')
 message,ok=handler.initialize_service(project_root=str(REPO),config_path='acestep-v15-turbo',
     device=device,offload_to_cpu=True,offload_dit_to_cpu=True,
@@ -217,8 +245,10 @@ message,ok=handler.initialize_service(project_root=str(REPO),config_path='aceste
 if not ok:
     raise RuntimeError(message)
 stage('가사 없는 연주곡을 생성하고 있습니다' if instrumental else '가사와 음악 설명으로 노래를 생성하고 있습니다')
+reference_audio=reference_audios[0] if reference_audios else None
 params=GenerationParams(caption=caption,lyrics=lyrics,instrumental=instrumental,
     vocal_language='unknown' if instrumental else (job['language'] if job['language']!='unknown' else metadata.get('language','unknown')),duration=duration,seed=job['seed'],
+    reference_audio=reference_audio,
     audio_codes=plan['audio_codes'],bpm=metadata.get('bpm'),keyscale=metadata.get('keyscale',''),
     timesignature=str(metadata.get('timesignature','')),lm_negative_prompt=negative_prompt,
     inference_steps=expert['inferenceSteps'],shift=expert['shift'],infer_method=expert['inferMethod'],
@@ -228,7 +258,11 @@ config=GenerationConfig(batch_size=1,use_random_seed=False,seeds=[job['seed']],a
 output=Path(a.out)
 result=generate_music(handler,None,params,config,save_dir=None)
 if not result.success or not result.audios:
-    raise RuntimeError(result.error or result.status_message or '노래 생성 실패')
+    error_text=result.error or result.status_message or '노래 생성 실패'
+    if 'Invalid reference audio' in str(error_text):
+        error_text='참조 오디오 파일을 읽을 수 없거나 무음입니다. 소리가 있는 다른 오디오 파일을 선택해 주세요.'
+        input_check_path.write_text(json.dumps({'ok':False,'error':error_text},ensure_ascii=False),encoding='utf-8')
+    raise RuntimeError(error_text)
 stage('완성된 노래를 저장하고 있습니다')
 first=result.audios[0]
 audio=first['tensor'].detach().float().cpu().numpy().T

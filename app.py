@@ -9,6 +9,7 @@ import time
 import wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import unquote
 
 import engine
 import exaone_lyrics
@@ -315,8 +316,20 @@ class Handler(BaseHTTPRequestHandler):
             except OSError:return self.reply({'error': '휴지통 목록을 읽을 수 없습니다.'}, 500)
         if self.path == '/api/jobs':
             return self.reply({'jobs': engine.history()})
+        if self.path == '/api/reference-audio':
+            return self.reply({'items': engine.list_reference_audios()})
+        if self.path.startswith('/reference-audio/'):
+            match = re.fullmatch(r'/reference-audio/([a-f0-9]{32})(\.[a-z0-9]+)', self.path)
+            if not match:
+                return self.reply({'error': '잘못된 파일 경로'}, 404)
+            try:
+                path, meta = engine.resolve_reference_audio_path(match[1])
+            except (ValueError, FileNotFoundError):
+                return self.reply({'error': '파일을 찾을 수 없습니다.'}, 404)
+            if meta['ext'] != match[2] or not path.exists():
+                return self.reply({'error': '파일을 찾을 수 없습니다.'}, 404)
+            return self.serve_audio(path)
         if self.path.startswith('/audio/'):
-            import re
             if not re.fullmatch(r'/audio/[a-f0-9]{32}\.(?:wav|mp3)', self.path):
                 return self.reply({'error': '잘못된 파일 경로'}, 404)
             ident = self.path[7:39]
@@ -374,7 +387,15 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_header('Content-Range',f'bytes */{size}')
                 self.send_header('Content-Length','0');self.end_headers();return
         self.send_response(206 if requested else 200)
-        self.send_header('Content-Type','audio/mpeg' if path.suffix == '.mp3' else 'audio/wav')
+        mime_types = {
+            '.mp3': 'audio/mpeg',
+            '.wav': 'audio/wav',
+            '.flac': 'audio/flac',
+            '.ogg': 'audio/ogg',
+            '.opus': 'audio/opus',
+            '.m4a': 'audio/mp4',
+        }
+        self.send_header('Content-Type', mime_types.get(path.suffix.lower(), 'audio/wav'))
         self.send_header('Accept-Ranges','bytes')
         if requested:self.send_header('Content-Range',f'bytes {start}-{end}/{size}')
         self.send_header('Content-Length',str(max(0,end-start+1)))
@@ -536,6 +557,34 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply({'error': str(e)}, 400)
             except Exception as e:
                 return self.reply({'error': f'연결 확인 실패: {e}'}, 500)
+        if self.path == '/api/reference-audio':
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= engine.REFERENCE_AUDIO_MAX_BYTES:
+                    raise ValueError('참조 오디오 파일은 1바이트 이상 50MB 이하만 등록할 수 있습니다.')
+                raw_name = unquote(self.headers.get('X-File-Name', 'reference.wav'))
+                raw = self.rfile.read(length)
+                return self.reply({'item': engine.save_reference_audio(raw_name, raw)}, 201)
+            except ValueError as e:
+                return self.reply({'error': str(e)}, 400)
+            except OSError:
+                return self.reply({'error': '참조 오디오를 저장할 수 없습니다.'}, 500)
+        if self.path == '/api/reference-audio/delete':
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 1024:
+                    raise ValueError('잘못된 요청 크기입니다.')
+                body = json.loads(self.rfile.read(length))
+                if not isinstance(body, dict):
+                    raise ValueError('잘못된 요청입니다.')
+                engine.delete_reference_audio(body.get('id'))
+                return self.reply({'ok': True})
+            except (ValueError, TypeError) as e:
+                return self.reply({'error': str(e)}, 400)
+            except FileNotFoundError as e:
+                return self.reply({'error': str(e)}, 404)
+            except OSError:
+                return self.reply({'error': '참조 오디오를 삭제할 수 없습니다.'}, 500)
         if self.path == '/api/cancel':
             engine.cancel()
             return self.reply({'ok': True})
@@ -547,7 +596,7 @@ class Handler(BaseHTTPRequestHandler):
                 settings = validate(body['settings'])
                 info = diagnose()
                 settings = resolve_generation_settings(settings, info)
-                return self.reply(engine.start(settings, body.get('prompt'), info['availableGB'], body.get('lyrics', ''), body.get('language', 'ko'), body.get('title', ''), body.get('negativePrompt', '')), 202)
+                return self.reply(engine.start(settings, body.get('prompt'), info['availableGB'], body.get('lyrics', ''), body.get('language', 'ko'), body.get('title', ''), body.get('negativePrompt', ''), reference_audio_id=body.get('referenceAudioId'), reference_audio_ids=body.get('referenceAudioIds')), 202)
             except (ValueError, TypeError, KeyError) as e:
                 return self.reply({'error': str(e)}, 400)
         if self.path != '/api/settings':

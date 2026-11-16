@@ -25,7 +25,7 @@ def get_app_version():
             return v_file.read_text(encoding='utf-8').strip()
     except Exception:
         pass
-    return '1.3.8'
+    return '1.3.9'
 
 
 def make_synchsafe(size):
