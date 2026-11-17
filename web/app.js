@@ -486,6 +486,17 @@ if($('select-all-results'))$('select-all-results').onchange=()=>{
     syncBatchSelectionUI();
 };
 
+let resultsNoticeTimer=null;
+function showResultsNotice(text){
+    clearTimeout(resultsNoticeTimer);
+    const el=$('results-notice');
+    if(!el)return;
+    el.textContent=text||'';
+    if(text){
+        resultsNoticeTimer=setTimeout(()=>{if($('results-notice'))$('results-notice').textContent='';},10000);
+    }
+}
+
 if($('delete-selected-results'))$('delete-selected-results').onclick=async()=>{
     const toDelete=Array.from(selectedJobIds);
     if(!toDelete.length)return;
@@ -496,9 +507,9 @@ if($('delete-selected-results'))$('delete-selected-results').onclick=async()=>{
         await api('/api/delete',{ids:toDelete});
         selectedJobIds.clear();
         await jobs();
-        $('results-notice').textContent=`${toDelete.length}개의 결과를 삭제했습니다. 파일은 로컬 휴지통에 보관됩니다.`;
+        showResultsNotice(`${toDelete.length}개의 결과를 삭제했습니다. 파일은 로컬 휴지통에 보관됩니다.`);
     }catch(e){
-        $('results-notice').textContent=e.message;
+        showResultsNotice(e.message);
     }finally{
         syncBatchSelectionUI();
     }
@@ -512,9 +523,9 @@ $('jobs').addEventListener('click',async event=>{
         await api('/api/delete',{id:button.dataset.delete});
         selectedJobIds.delete(button.dataset.delete);
         await jobs();
-        $('results-notice').textContent='결과를 삭제했습니다. 파일은 로컬 휴지통에 보관됩니다.';
+        showResultsNotice('결과를 삭제했습니다. 파일은 로컬 휴지통에 보관됩니다.');
     }catch(e){
-        $('results-notice').textContent=e.message;
+        showResultsNotice(e.message);
         button.disabled=false;button.textContent='삭제';
     }finally{
         syncBatchSelectionUI();

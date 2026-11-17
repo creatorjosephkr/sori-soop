@@ -3364,3 +3364,20 @@ html[data-theme="dark-gray"] .result-loading {
   border-color: #3d5b49 !important;
   color: #92d9ac !important;
 }
+
+.results-notice {
+  background: var(--accent-soft) !important;
+  border-color: var(--accent-border) !important;
+  color: var(--text-primary) !important;
+}
+
+html[data-theme="dark-gray"] .results-notice {
+  background: #1e2822 !important;
+  border-color: #3d5b49 !important;
+  color: #92d9ac !important;
+}
+
+.lyric-guide-dialog code {
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+}
