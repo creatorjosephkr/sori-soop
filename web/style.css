@@ -3381,3 +3381,99 @@ html[data-theme="dark-gray"] .results-notice {
   background: var(--bg-subtle);
   color: var(--text-primary);
 }
+
+/* ==========================================================================
+   Comprehensive Dark Mode & Hover Overrides for All Controls & Dialogs
+   ========================================================================== */
+.delete-selected-button:not(:disabled) {
+  background: var(--bg-surface) !important;
+  border-color: var(--danger-text) !important;
+  color: var(--danger-text) !important;
+}
+
+.delete-selected-button:hover:not(:disabled),
+.delete-result:hover:not(:disabled),
+.reference-delete-btn:hover:not(:disabled),
+.api-key-input-row .danger-button:hover:not(:disabled) {
+  background: var(--danger-bg) !important;
+  border-color: var(--danger-text) !important;
+  color: var(--danger-text) !important;
+}
+
+.delete-selected-button:disabled {
+  background: var(--bg-surface) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-muted) !important;
+  opacity: 0.45;
+}
+
+.reference-delete-btn,
+.api-key-input-row .danger-button {
+  background: var(--bg-surface) !important;
+  border-color: var(--border-default) !important;
+  color: var(--danger-text) !important;
+}
+
+.trash-button:hover:not(:disabled),
+.secondary-button:hover:not(:disabled),
+.small-action-button:hover:not(:disabled),
+.result-autoplay-label:hover,
+.title-editor-actions button:hover:not(:disabled),
+.expert-reset:hover:not(:disabled),
+.result-apply-actions .secondary-button:hover:not(:disabled),
+.result-apply-actions .save:hover:not(:disabled),
+.api-key-input-row .secondary-button:hover:not(:disabled) {
+  background: var(--bg-hover) !important;
+  border-color: var(--accent-border) !important;
+  color: var(--text-primary) !important;
+}
+
+.api-key-input-row input,
+.api-key-input-row .secondary-button,
+.result-apply-actions .secondary-button,
+.result-apply-actions .save,
+.negative-custom-wrap input,
+.tempo-options input {
+  background: var(--bg-surface) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+}
+
+.negative-option {
+  border-bottom-color: var(--border-subtle) !important;
+}
+
+.negative-option b,
+.negative-custom-wrap label,
+.trash-item-title {
+  color: var(--text-primary) !important;
+}
+
+.negative-option small,
+.negative-custom-wrap label small,
+.trash-item-meta,
+.expert-toggle-text small,
+.expert-preset small,
+.download-message,
+.rename-message {
+  color: var(--text-secondary) !important;
+}
+
+.negative-custom-wrap {
+  border-top-color: var(--border-default) !important;
+}
+
+.trash-items li {
+  padding: 12px 14px !important;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-default) !important;
+}
+
+.api-key-summary-info .ui-icon {
+  color: var(--accent-primary);
+}
+
+html[data-theme="dark-gray"] .api-key-summary-info .ui-icon {
+  color: #92d9ac !important;
+}
