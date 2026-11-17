@@ -3,6 +3,7 @@ import json
 import os
 import platform
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -10,7 +11,7 @@ import time
 import uuid
 from pathlib import Path
 
-from app_paths import ENGINE_ROOT, ROOT, background_options
+from app_paths import ENGINE_ROOT, ROOT, background_options, create_venv, uv_path
 from audio_export import write_mp3
 from audio_processing import apply_wav_metadata
 import engine
@@ -164,13 +165,24 @@ def _run_setup_worker(voice_mode='custom'):
         if not py.exists():
             _set_setup(message='1/3 · 음성 생성 전용 Python 환경을 만들고 있습니다…')
             _append_log('Python 가상환경(.venv)을 생성하고 있습니다...')
-            _run_logged([sys.executable, '-m', 'venv', str(root / '.venv')])
+            if (root / '.venv').exists():
+                shutil.rmtree(root / '.venv', ignore_errors=True)
+            create_venv(root / '.venv')
 
         if not runtime_ready():
             _set_setup(message='2/3 · Qwen3-TTS 및 PyTorch 패키지를 설치하고 있습니다…')
-            _append_log('pip 업그레이드 및 torch, qwen-tts, soundfile 설치를 시작합니다...')
-            _run_logged([str(py), '-m', 'pip', 'install', '--upgrade', 'pip'])
-            _run_logged([str(py), '-m', 'pip', 'install', 'torch', 'qwen-tts', 'soundfile', 'huggingface_hub'])
+            _append_log('uv로 torch, qwen-tts, soundfile, huggingface_hub 설치를 시작합니다...')
+            uv = uv_path()
+            if platform.system() == 'Windows':
+                try:
+                    from song_runtime import detect_nvidia_gpu
+                    gpu = detect_nvidia_gpu()
+                except Exception:
+                    gpu = None
+                if gpu is not None and gpu.get('vramGB', 0) >= 4.0:
+                    _append_log(f"NVIDIA GPU 감지 ({gpu.get('name')}): CUDA 가속 PyTorch를 설치합니다...")
+                    _run_logged([uv, 'pip', 'install', '--python', str(py), 'torch', 'torchvision', 'torchaudio', '--index-url', 'https://download.pytorch.org/whl/cu128'])
+            _run_logged([uv, 'pip', 'install', '--python', str(py), 'torch', 'qwen-tts', 'soundfile', 'huggingface_hub'])
             (root / '.runtime-ready').write_text('ok\n', encoding='utf-8')
             _append_log('패키지 설치를 완료했습니다.')
 
