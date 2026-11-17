@@ -32,13 +32,17 @@ def make_synchsafe(size):
     return bytes([(size >> 21) & 0x7f, (size >> 14) & 0x7f, (size >> 7) & 0x7f, size & 0x7f])
 
 
+def encode_id3_utf16(text):
+    return b'\xff\xfe' + str(text).encode('utf-16-le') + b'\x00\x00'
+
+
 def make_text_frame(frame_id, text):
-    data = b'\x01' + text.encode('utf-16')
+    data = b'\x01' + encode_id3_utf16(text)
     return frame_id.encode('ascii') + len(data).to_bytes(4, 'big') + b'\x00\x00' + data
 
 
 def make_comm_frame(desc, text):
-    data = b'\x01kor' + desc.encode('utf-16') + b'\x00\x00' + text.encode('utf-16')
+    data = b'\x01eng' + encode_id3_utf16(desc) + encode_id3_utf16(text)
     return b'COMM' + len(data).to_bytes(4, 'big') + b'\x00\x00' + data
 
 

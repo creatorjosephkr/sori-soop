@@ -41,7 +41,7 @@ class SettingsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate({'policy': 'manual', 'mode': 'sfx', 'model': 'small-music', 'backend': 'cpu', 'seconds': 5})
         self.assertEqual(recommend({'ramGB': 16, 'availableGB': 8, 'appleSilicon': True}, 'sfx')['model'], 'small-sfx')
-        self.assertEqual(recommend({'ramGB': 16, 'availableGB': 8, 'appleSilicon': True}, 'sfx')['seconds'], 5)
+        self.assertEqual(recommend({'ramGB': 16, 'availableGB': 8, 'appleSilicon': True}, 'sfx')['seconds'], 3)
 
 if __name__ == '__main__':
     unittest.main()

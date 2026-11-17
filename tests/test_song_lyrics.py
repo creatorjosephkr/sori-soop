@@ -80,6 +80,6 @@ class SongLyricsTests(unittest.TestCase):
             "display_lyrics(화면 표시용 정자법 가사)와 phonetic_lyrics(ACE-Step 엔진 전달용 발음 가사)를 각각 생성하여 제공",
             "3. **구조 태그 및 호흡 기호 배치**",
             "4. **ACE-Step 영문 스타일 프롬프트 세팅**",
-            "### [곡 기획 정보]",
+            "# [곡 기획 정보]",
         ):
             self.assertIn(phrase,script)

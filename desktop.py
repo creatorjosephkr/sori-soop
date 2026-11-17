@@ -72,14 +72,14 @@ def notify_error(message):
         subprocess.run(['osascript','-e','display alert "소리숲" message "'+escaped+'" as critical'],check=False)
 
 def window_geometry(screens):
-    width,height=1600,1080
+    width,height=1600,850
     if screens:
         screen=screens[0];frame=screen.frame
         available_width=int(getattr(frame,'Width',screen.width))
         available_height=int(getattr(frame,'Height',screen.height))
         width=min(width,max(640,available_width-40))
         height=min(height,max(480,available_height-48))
-    return width,height,(min(1100,width),min(760,height))
+    return width,height,(min(1100,width),min(720,height))
 
 
 def configure_webview_platform():

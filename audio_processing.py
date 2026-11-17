@@ -87,13 +87,14 @@ def apply_wav_metadata(path, title=None, artist=APP_NAME, software=None, comment
         id3_chunk += b'\x00'
     chunks.append(id3_chunk)
 
-    # 2) Standard RIFF LIST INFO chunk as fallback
+    # 2) Standard RIFF LIST INFO chunk as fallback (Windows Explorer decodes ANSI/CP949 on Korean Windows)
+    info_encoding = 'cp949' if sys.platform == 'win32' else 'utf-8'
     subchunks = []
     meta = {'INAM': title, 'IART': artist, 'ISFT': software, 'ICMT': comment}
     for key, val in meta.items():
         if not val:
             continue
-        encoded = str(val).encode('utf-8') + b'\x00'
+        encoded = str(val).encode(info_encoding, errors='replace') + b'\x00'
         chunk = key.encode('ascii') + len(encoded).to_bytes(4, 'little') + encoded
         if len(encoded) % 2 == 1:
             chunk += b'\x00'

@@ -66,9 +66,6 @@
     function render(mode,isInstrumental){
         const next=mode==='song'?(isInstrumental?'instrumental':'song'):mode;
         if(next!==key){key=next;renderNegative();}
-        const tempoSection=$('tempo-options');
-        const tempoAnchor=document.querySelector(isInstrumental?'label[for="track-title"]':'.composer > details.prompt-presets');
-        if(tempoAnchor&&tempoSection.nextElementSibling!==tempoAnchor)tempoAnchor.before(tempoSection);
         $('tempo-options').hidden=!(mode==='bgm'||isInstrumental);
         $('music-bpm').value=draft().bpm;$('music-bpm-custom').value=draft().custom;
         $('custom-bpm-wrap').hidden=draft().bpm!=='custom';

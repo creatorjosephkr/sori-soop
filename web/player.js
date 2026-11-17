@@ -57,6 +57,7 @@
         const duration=Number.isFinite(audio.duration)&&audio.duration>0?audio.duration:0;
         seek.disabled=!duration;
         seek.value=duration?Math.round(audio.currentTime/duration*1000):0;
+        seek.style.setProperty('--seek-pct',(duration?Math.min(100,Math.max(0,audio.currentTime/duration*100)):0).toFixed(2)+'%');
         seek.setAttribute('aria-valuetext',clock(audio.currentTime)+' / '+clock(duration));
         player.querySelector('.player-time').textContent=clock(audio.currentTime)+' / '+clock(duration);
         player.querySelector('.player-volume').value=audio.volume;
@@ -226,17 +227,20 @@
         }
 
         // 4. Channel Labels at bottom
+        const meterLabelColor=getComputedStyle(document.documentElement).getPropertyValue('--meter-label').trim()||'#47613e';
         ctx.font='700 9px system-ui, -apple-system, sans-serif';ctx.textAlign='center';ctx.textBaseline='bottom';
-        ctx.fillStyle='#47613e';
+        ctx.fillStyle=meterLabelColor;
         ctx.fillText('L',barL+barW/2,h);
         ctx.fillText('R',barR+barW/2,h);
     }
     function start(entry){
-        if(entry.disposed||entry.audio.paused||!entry.audio.closest('details')?.open)return;
+        const disclosure=entry.audio.closest('details');
+        if(entry.disposed||entry.audio.paused||(disclosure&&!disclosure.open))return;
         if(entry.frame)return;
         const tick=now=>{
             entry.frame=0;
-            if(entry.disposed||entry.audio.paused||entry.audio.ended||document.hidden||!entry.audio.closest('details')?.open){
+            const d=entry.audio.closest('details');
+            if(entry.disposed||entry.audio.paused||entry.audio.ended||document.hidden||(d&&!d.open)){
                 drawMeter(entry,true);return;
             }
             if(now-entry.last>33){draw(entry);drawMeter(entry);entry.last=now;}
@@ -253,12 +257,14 @@
             entries.delete(audio);
         }
     }
-    document.getElementById('jobs').addEventListener('toggle',event=>{
-        if(event.target.matches('.result-disclosure')&&event.target.open){
-            const entry=entries.get(event.target.querySelector('audio'));
-            if(entry){draw(entry);drawMeter(entry);start(entry);}
-        }
-    },true);
+    for(const containerId of ['jobs','tts-history-list']){
+        document.getElementById(containerId)?.addEventListener('toggle',event=>{
+            if(event.target.matches('.result-disclosure,.tts-history-disclosure')&&event.target.open){
+                const entry=entries.get(event.target.querySelector('audio'));
+                if(entry){draw(entry);drawMeter(entry);start(entry);}
+            }
+        },true);
+    }
     document.addEventListener('visibilitychange',()=>{
         for(const audio of document.querySelectorAll('.audio-player audio')){
             const entry=entries.get(audio);if(!entry)continue;
@@ -270,6 +276,12 @@
         document.querySelectorAll('.audio-player audio').forEach(audio=>{
             const entry=entries.get(audio);if(!entry)return;cancelAnimationFrame(entry.frame);entry.frame=0;
             draw(entry);drawMeter(entry);start(entry);
+        });
+    });
+    window.addEventListener('sorisoop:themechange',()=>{
+        document.querySelectorAll('.audio-player audio').forEach(audio=>{
+            const entry=entries.get(audio);if(!entry)return;
+            draw(entry);drawMeter(entry,audio.paused);
         });
     });
     window.AudioSpectrum={markup,attach,prepare,release};

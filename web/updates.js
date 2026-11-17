@@ -3,49 +3,115 @@
     const button=document.getElementById('check-updates');
     const status=document.getElementById('update-check-status');
     const dialog=document.getElementById('update-dialog');
+    const titleEl=document.getElementById('update-title');
+    const descEl=document.getElementById('update-description');
+    const guidanceEl=document.getElementById('update-guidance');
+    const downloadBtn=document.getElementById('update-download');
+    const releaseBtn=document.getElementById('update-release');
+    const laterBtn=document.getElementById('update-later');
+    const openStatusEl=document.getElementById('update-open-status');
     let pending=null,manualPending=false,opener=null,checking=false;
+
+    function openDialog(){
+        if(!dialog.open){
+            opener=document.activeElement;
+            dialog.showModal();
+        }
+    }
+
+    function renderDialogState(mode,data){
+        if(openStatusEl)openStatusEl.textContent='';
+        if(mode==='checking'){
+            if(titleEl)titleEl.textContent='업데이트 확인';
+            if(descEl)descEl.textContent='새 버전을 확인하고 있습니다…';
+            if(guidanceEl)guidanceEl.hidden=true;
+            if(downloadBtn)downloadBtn.hidden=true;
+            if(releaseBtn)releaseBtn.hidden=false;
+            if(laterBtn)laterBtn.textContent='닫기';
+            return;
+        }
+        if(mode==='available'){
+            if(titleEl)titleEl.textContent='새로운 소리숲이 준비됐어요';
+            if(descEl)descEl.textContent=`현재 v${data.currentVersion} → 새 버전 v${data.latestVersion}`;
+            if(guidanceEl)guidanceEl.hidden=false;
+            if(downloadBtn)downloadBtn.hidden=!data.releaseUrl;
+            if(releaseBtn)releaseBtn.hidden=false;
+            if(laterBtn)laterBtn.textContent='나중에';
+            return;
+        }
+        if(mode==='latest'){
+            if(titleEl)titleEl.textContent='최신 버전입니다';
+            if(descEl)descEl.textContent=`현재 최신 버전(v${data.currentVersion})을 사용하고 있습니다.`;
+            if(guidanceEl)guidanceEl.hidden=true;
+            if(downloadBtn)downloadBtn.hidden=true;
+            if(releaseBtn)releaseBtn.hidden=false;
+            if(laterBtn)laterBtn.textContent='확인';
+            return;
+        }
+        if(mode==='error'){
+            if(titleEl)titleEl.textContent='업데이트 확인 실패';
+            if(descEl)descEl.textContent=data?.message||'업데이트 정보를 확인할 수 없습니다.';
+            if(guidanceEl)guidanceEl.hidden=true;
+            if(downloadBtn)downloadBtn.hidden=true;
+            if(releaseBtn)releaseBtn.hidden=false;
+            if(laterBtn)laterBtn.textContent='확인';
+        }
+    }
+
     function present(){
         if(!pending||document.querySelector('dialog[open]'))return;
         if(!manualPending&&document.getElementById('model-setup')?.getAttribute('aria-busy')==='true')return;
         // Keep startup notices out of an active generation workflow.
         if(!manualPending&&typeof jobHistory!=='undefined'&&jobHistory.some(j=>['queued','running'].includes(j.status)))return;
-        opener=document.activeElement;
-        document.getElementById('update-description').textContent=`현재 v${pending.currentVersion} → 새 버전 v${pending.latestVersion}`;
-        document.getElementById('update-download').hidden=!pending.releaseUrl;
-        document.getElementById('update-open-status').textContent='';
-        pending=null;manualPending=false;dialog.showModal();
+        renderDialogState('available',pending);
+        pending=null;manualPending=false;
+        openDialog();
     }
+
     async function check(manual){
         if(checking)return;
         checking=true;button.disabled=true;
-        if(manual)status.textContent='새 버전을 확인하고 있습니다…';
+        if(manual){
+            if(status)status.textContent='';
+            renderDialogState('checking');
+            openDialog();
+        }
         try{
             const result=await api('/api/updates/check',{});
-            status.textContent=manual?(result.available?'새 버전이 있습니다.':`최신 버전(v${result.currentVersion})을 사용하고 있습니다.`):'';
-            if(result.available){pending=result;manualPending=manual;present();}
-        }catch(error){if(manual)status.textContent=error.message;}
+            if(manual){
+                renderDialogState(result.available?'available':'latest',result);
+                openDialog();
+            }else if(result.available){
+                pending=result;manualPending=false;present();
+            }
+        }catch(error){
+            if(manual){
+                renderDialogState('error',error);
+                openDialog();
+            }
+        }
         finally{checking=false;button.disabled=false;}
     }
+
     button.onclick=()=>check(true);
-    document.getElementById('update-later').onclick=()=>dialog.close();
+    laterBtn.onclick=()=>dialog.close();
+    document.getElementById('close-update-dialog')?.addEventListener('click',()=>dialog.close());
     dialog.addEventListener('close',()=>opener?.focus({preventScroll:true}));
     dialog.addEventListener('click',event=>{
         const box=dialog.getBoundingClientRect();
         if(event.target===dialog&&(event.clientX<box.left||event.clientX>box.right||event.clientY<box.top||event.clientY>box.bottom))dialog.close();
     });
-    document.getElementById('update-download').onclick=async()=>{
-        const control=document.getElementById('update-download'),message=document.getElementById('update-open-status');
-        control.disabled=true;
-        message.textContent='최신 릴리즈 페이지를 기본 웹브라우저에서 열고 앱을 종료합니다…';
+    downloadBtn.onclick=async()=>{
+        downloadBtn.disabled=true;
+        openStatusEl.textContent='최신 릴리즈 페이지를 기본 웹브라우저에서 열고 앱을 종료합니다…';
         try{await api('/api/updates/open/download',{});}
-        catch(error){message.textContent=error.message;control.disabled=false;}
+        catch(error){openStatusEl.textContent=error.message;downloadBtn.disabled=false;}
     };
-    document.getElementById('update-release').onclick=async()=>{
-        const control=document.getElementById('update-release'),message=document.getElementById('update-open-status');
-        control.disabled=true;
-        try{await api('/api/updates/open/release',{});message.textContent='기본 웹브라우저에서 열었습니다.';}
-        catch(error){message.textContent=error.message;}
-        finally{control.disabled=false;}
+    releaseBtn.onclick=async()=>{
+        releaseBtn.disabled=true;
+        try{await api('/api/updates/open/release',{});openStatusEl.textContent='기본 웹브라우저에서 열었습니다.';}
+        catch(error){openStatusEl.textContent=error.message;}
+        finally{releaseBtn.disabled=false;}
     };
     setTimeout(()=>check(false),1500);
     setInterval(present,2000);

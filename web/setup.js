@@ -67,8 +67,9 @@
             const retry=document.getElementById('setup-retry');
             retry.textContent=optionalMode?'모델 준비 다시 시도':'자동 준비 다시 시작';retry.hidden=status.state!=='failed';retry.disabled=status.active||activeJob;
             message.textContent=status.active?`자동 준비 ${status.step||1}/${status.total||1} · ${labels[status.component]} 실행 환경과 모델을 준비하고 있습니다. 인터넷 속도에 따라 수 분 이상 걸릴 수 있습니다.`:status.error||(complete?'준비를 마쳤습니다. 이제 음악을 만들어 보세요.':'첫 실행 준비를 기다리고 있습니다.');
-            opener.textContent=status.active?'실행 준비 중…':complete?'실행 준비 완료':status.state==='failed'?'실행 준비 확인 필요':'실행 준비 상태';
-            document.getElementById('setup-done').textContent=status.active?'닫고 계속 준비':complete?'음악 만들기 시작':'닫기';
+            const openerLabel=opener.querySelector('.util-label')||opener;
+            openerLabel.textContent=status.active?'생성 엔진 준비 중…':complete?'생성 엔진 준비 완료':status.state==='failed'?'생성 엔진 확인 필요':'생성 엔진 준비 상태';
+            document.getElementById('setup-done').textContent=status.active?'닫고 계속 준비':complete?'음악 만들기 시작 / 닫기':'닫기';
             if(status.state==='failed')document.getElementById('setup-done').textContent='닫기';
             const wasRunning=running;
             if(running&&!status.active){await refresh();await jobs();}

@@ -9,11 +9,12 @@ import time
 import wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 
 import engine
 import exaone_lyrics
 import installer
+import qwen_tts_voice
 import song_duration
 import song_expert
 import translation
@@ -121,7 +122,7 @@ def schedule_exit():
 MODELS = {
     'small-music': {'name': 'Stable Audio 3 Small-Music', 'minSeconds': 10, 'maxSeconds': 120, 'vocals': False, 'mode': 'bgm'},
     'medium': {'name': 'Stable Audio 3 Medium · 고품질', 'minSeconds': 10, 'maxSeconds': 380, 'vocals': False, 'mode': 'bgm'},
-    'small-sfx': {'name': 'Stable Audio 3 Small-SFX · 효과음', 'minSeconds': 1, 'maxSeconds': 120, 'vocals': False, 'mode': 'sfx'},
+    'small-sfx': {'name': 'Stable Audio 3 Small-SFX · 효과음', 'minSeconds': 1, 'maxSeconds': 60, 'vocals': False, 'mode': 'sfx'},
     'ace-step': {'name': 'ACE-Step 1.5', 'minSeconds': 10, 'maxSeconds': 600, 'vocals': True, 'mode': 'song'},
 }
 
@@ -201,7 +202,7 @@ def recommend(info, mode='bgm'):
     sfx = mode == 'sfx'
     model = 'ace-step' if song else ('small-sfx' if sfx else 'small-music')
     limited = ram < 12 or (free is not None and free < 4)
-    seconds = 5 if sfx else (30 if limited or song else 60)
+    seconds = 3 if sfx else (30 if limited or song else 60)
     warnings = []
     if song:
         warnings.append('가사를 직접 입력하세요. 짧은 노래부터 시작하고, 발음과 가사 반영 여부를 들어보세요.')
@@ -316,6 +317,37 @@ class Handler(BaseHTTPRequestHandler):
             except OSError:return self.reply({'error': '휴지통 목록을 읽을 수 없습니다.'}, 500)
         if self.path == '/api/jobs':
             return self.reply({'jobs': engine.history()})
+        if self.path == '/api/tts/status':
+            return self.reply(qwen_tts_voice.status())
+        if self.path == '/api/tts/list':
+            return self.reply({'items': qwen_tts_voice.list_previews()})
+        if self.path.startswith('/tts-audio/'):
+            path_only, _, query = self.path.partition('?')
+            match = re.fullmatch(r'/tts-audio/([a-f0-9]{32})\.(wav|mp3)', path_only)
+            if not match:
+                return self.reply({'error': '잘못된 파일 경로'}, 404)
+            ident, ext = match[1], match[2]
+            try:
+                if ext == 'mp3':
+                    path, meta = qwen_tts_voice.export_mp3(ident)
+                else:
+                    path, meta = qwen_tts_voice.resolve_preview_path(ident)
+            except (ValueError, FileNotFoundError):
+                return self.reply({'error': '파일을 찾을 수 없습니다.'}, 404)
+            except Exception as e:
+                return self.reply({'error': f'파일 변환 실패: {e}'}, 500)
+            if 'download=1' in query:
+                raw = path.read_bytes()
+                fname = qwen_tts_voice.download_filename(ident, meta, ext)
+                ascii_fallback = f'sorisup_voice_{ident[:6]}.{ext}'
+                self.send_response(200)
+                self.send_header('Content-Type', 'audio/mpeg' if ext == 'mp3' else 'audio/wav')
+                self.send_header('Content-Length', str(len(raw)))
+                self.send_header('Content-Disposition', f'attachment; filename="{ascii_fallback}"; filename*=UTF-8\'\'{quote(fname, safe="")}')
+                self.end_headers()
+                self.wfile.write(raw)
+                return
+            return self.serve_audio(path)
         if self.path == '/api/reference-audio':
             return self.reply({'items': engine.list_reference_audios()})
         if self.path.startswith('/reference-audio/'):
@@ -356,7 +388,7 @@ class Handler(BaseHTTPRequestHandler):
             info = diagnose()
             settings = read_settings()
             return self.reply({'system': info, 'settings': settings, 'translationReady': translation.ready(), 'recommendation': recommend(info, settings.get('mode', 'bgm')), 'models': MODELS, 'engineReady': engine.ready('apple' if info['appleSilicon'] else ('cuda' if info.get('cudaEligible') else 'cpu')), 'engines': {b: engine.ready(b) for b in ('apple', 'cpu', 'cuda')}, 'sa3Models': {b: {m: engine.sa3_model_ready(b, m) for m in ('small-music', 'medium', 'small-sfx')} for b in ('apple', 'cpu', 'cuda')}, 'songEngines': {b: engine.ready(b, 'ace-step') for b in ('apple', 'cpu', 'cuda')}, 'songPlanners':{q:engine.planner_ready(q) for q in ('light','quality')}, 'hasExaoneApiKey': bool(settings.get('exaoneApiKey')), 'exaoneTimeout': settings.get('exaoneTimeout', exaone_lyrics.DEFAULT_REQUEST_TIMEOUT)})
-        paths = {'/': 'index.html', '/style.css': 'style.css', '/app.js': 'app.js', '/generation-options.js': 'generation-options.js', '/expert-settings.js': 'expert-settings.js', '/presets.js': 'presets.js', '/player.js': 'player.js', '/icons.js': 'icons.js', '/setup.js': 'setup.js', '/updates.js': 'updates.js', '/fonts/NotoSansKR-Variable.ttf': 'fonts/NotoSansKR-Variable.ttf', '/icons/sorisup.svg': 'icons/sorisup.svg', '/icons/chatgpt.svg': 'icons/chatgpt.svg', '/icons/claude.ico': 'icons/claude.ico', '/icons/gemini.png': 'icons/gemini.png'}
+        paths = {'/': 'index.html', '/style.css': 'style.css', '/app.js': 'app.js', '/generation-options.js': 'generation-options.js', '/expert-settings.js': 'expert-settings.js', '/studio-modes.js': 'studio-modes.js', '/tts-voice.js': 'tts-voice.js', '/presets.js': 'presets.js', '/player.js': 'player.js', '/icons.js': 'icons.js', '/setup.js': 'setup.js', '/updates.js': 'updates.js', '/fonts/NotoSansKR-Variable.ttf': 'fonts/NotoSansKR-Variable.ttf', '/fonts/Mulmaru.ttf': 'fonts/Mulmaru.ttf', '/fonts/PIDvl.ttf': 'fonts/PIDvl.ttf', '/fonts/x12y12pxMaruMinyaHangul.ttf': 'fonts/x12y12pxMaruMinyaHangul.ttf', '/icons/sorisup.svg': 'icons/sorisup.svg', '/icons/chatgpt.svg': 'icons/chatgpt.svg', '/icons/claude.ico': 'icons/claude.ico', '/icons/gemini.png': 'icons/gemini.png'}
         paths.update({'/spon/'+name: '../spon/'+name for name in ('spon.svg', 'kakaobank.png', 'paypal.png')})
         if self.path not in paths:
             return self.reply({'error': '찾을 수 없습니다.'}, 404)
@@ -557,6 +589,37 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply({'error': str(e)}, 400)
             except Exception as e:
                 return self.reply({'error': f'연결 확인 실패: {e}'}, 500)
+        if self.path == '/api/tts/status':
+            return self.reply(qwen_tts_voice.status())
+        if self.path == '/api/tts/list':
+            return self.reply({'items': qwen_tts_voice.list_previews()})
+        if self.path.startswith('/tts-audio/'):
+            path_only, _, query = self.path.partition('?')
+            match = re.fullmatch(r'/tts-audio/([a-f0-9]{32})\.(wav|mp3)', path_only)
+            if not match:
+                return self.reply({'error': '잘못된 파일 경로'}, 404)
+            ident, ext = match[1], match[2]
+            try:
+                if ext == 'mp3':
+                    path, meta = qwen_tts_voice.export_mp3(ident)
+                else:
+                    path, meta = qwen_tts_voice.resolve_preview_path(ident)
+            except (ValueError, FileNotFoundError):
+                return self.reply({'error': '파일을 찾을 수 없습니다.'}, 404)
+            except Exception as e:
+                return self.reply({'error': f'파일 변환 실패: {e}'}, 500)
+            if 'download=1' in query:
+                raw = path.read_bytes()
+                fname = qwen_tts_voice.download_filename(ident, meta, ext)
+                ascii_fallback = f'sorisup_voice_{ident[:6]}.{ext}'
+                self.send_response(200)
+                self.send_header('Content-Type', 'audio/mpeg' if ext == 'mp3' else 'audio/wav')
+                self.send_header('Content-Length', str(len(raw)))
+                self.send_header('Content-Disposition', f'attachment; filename="{ascii_fallback}"; filename*=UTF-8\'\'{quote(fname, safe="")}')
+                self.end_headers()
+                self.wfile.write(raw)
+                return
+            return self.serve_audio(path)
         if self.path == '/api/reference-audio':
             try:
                 length = int(self.headers.get('Content-Length', '0'))
@@ -585,6 +648,86 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply({'error': str(e)}, 404)
             except OSError:
                 return self.reply({'error': '참조 오디오를 삭제할 수 없습니다.'}, 500)
+        if self.path == '/api/tts/setup':
+            voice_mode = 'custom'
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if 0 < length <= 1024:
+                    body = json.loads(self.rfile.read(length))
+                    if isinstance(body, dict) and body.get('voiceMode') in ('custom', 'design'):
+                        voice_mode = body['voiceMode']
+            except Exception:
+                pass
+            return self.reply(qwen_tts_voice.start_setup(voice_mode), 202)
+        if self.path == '/api/tts/generate':
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 16384:
+                    raise ValueError('잘못된 요청 크기입니다.')
+                body = json.loads(self.rfile.read(length))
+                if not isinstance(body, dict):
+                    raise ValueError('잘못된 요청입니다.')
+                return self.reply(qwen_tts_voice.generate(
+                    body.get('text', ''),
+                    body.get('speaker', 'Sohee'),
+                    body.get('language', 'Korean'),
+                    body.get('instruct', ''),
+                    body.get('voiceMode', 'custom'),
+                ), 201)
+            except ValueError as e:
+                return self.reply({'error': str(e)}, 400)
+            except RuntimeError as e:
+                return self.reply({'error': str(e)}, 503)
+            except Exception as e:
+                return self.reply({'error': f'음성 생성 실패: {e}'}, 500)
+        if self.path == '/api/tts/register':
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 2048:
+                    raise ValueError('잘못된 요청 크기입니다.')
+                body = json.loads(self.rfile.read(length))
+                if not isinstance(body, dict):
+                    raise ValueError('잘못된 요청입니다.')
+                item = qwen_tts_voice.register_as_reference(body.get('id', ''), body.get('name', ''))
+                return self.reply({'item': item}, 201)
+            except ValueError as e:
+                return self.reply({'error': str(e)}, 400)
+            except FileNotFoundError as e:
+                return self.reply({'error': str(e)}, 404)
+            except OSError:
+                return self.reply({'error': '보컬 참조 오디오로 등록할 수 없습니다.'}, 500)
+        if self.path == '/api/tts/rename':
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 2048:
+                    raise ValueError('잘못된 요청 크기입니다.')
+                body = json.loads(self.rfile.read(length))
+                if not isinstance(body, dict):
+                    raise ValueError('잘못된 요청입니다.')
+                item = qwen_tts_voice.rename_preview(body.get('id', ''), body.get('title', ''))
+                return self.reply({'item': item})
+            except ValueError as e:
+                return self.reply({'error': str(e)}, 400)
+            except FileNotFoundError as e:
+                return self.reply({'error': str(e)}, 404)
+            except OSError:
+                return self.reply({'error': '음성 이름을 변경할 수 없습니다.'}, 500)
+        if self.path == '/api/tts/delete':
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 1024:
+                    raise ValueError('잘못된 요청 크기입니다.')
+                body = json.loads(self.rfile.read(length))
+                if not isinstance(body, dict):
+                    raise ValueError('잘못된 요청입니다.')
+                qwen_tts_voice.delete_preview(body.get('id', ''))
+                return self.reply({'ok': True})
+            except ValueError as e:
+                return self.reply({'error': str(e)}, 400)
+            except FileNotFoundError as e:
+                return self.reply({'error': str(e)}, 404)
+            except OSError:
+                return self.reply({'error': '생성된 음성을 삭제할 수 없습니다.'}, 500)
         if self.path == '/api/cancel':
             engine.cancel()
             return self.reply({'ok': True})

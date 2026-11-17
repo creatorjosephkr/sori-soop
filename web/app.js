@@ -24,12 +24,15 @@ function renderSongType(){
     $('song-type-vocal').setAttribute('aria-pressed',String(!instrumentalSelected));
     $('song-type-instrumental').setAttribute('aria-pressed',String(instrumentalSelected));
 }
-function songAutoDuration(){return mode==='song'&&!songInstrumental()&&$('song-duration-mode').value==='auto';}
+function songAutoDuration(){return mode==='song'&&!songInstrumental();}
 function renderDurationInput(){
     const input=$('seconds-number'),slider=$('seconds');
     if(input.min!==slider.min||input.max!==slider.max||input.dataset.mode!==mode)durationDraft=false;
     input.min=slider.min;input.max=slider.max;input.dataset.mode=mode;
     if(!durationDraft)input.value=slider.value;
+    const minVal=Number(slider.min||0),maxVal=Number(slider.max||100),curVal=Number(slider.value||minVal);
+    const pct=maxVal>minVal?Math.min(100,Math.max(0,(curVal-minVal)/(maxVal-minVal)*100)):0;
+    slider.style.setProperty('--range-pct',pct.toFixed(2)+'%');
     const valid=input.value!==''&&input.validity.valid;
     input.setAttribute('aria-invalid',String(!valid));
     $('duration-error').textContent=valid?'':`길이를 ${input.min}~${input.max}초 사이의 정수로 입력하세요.`;
@@ -40,10 +43,10 @@ function setText(id,text){if($(id)&&$(id).textContent!==text)$(id).textContent=t
 const $=id=>document.getElementById(id);
 const escapeHTML=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(url,body){const r=await fetch(url,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});const data=await r.json();if(!r.ok)throw Error(data.error||'요청에 실패했습니다.');return data;}
-function recommendation(){const s=state.system;const hasNvidia=Boolean(s.gpu&&s.gpu.some(g=>g.vramGB>=5.5));const low=(s.ramGB||0)<12||(s.availableGB!==null&&s.availableGB<4);const recBackend=s.appleSilicon?'apple':((hasNvidia&&mode==='song')?'cuda':'cpu');return {model:mode==='song'?'ace-step':(mode==='sfx'?'small-sfx':bgmModelChoice),backend:recBackend,seconds:mode==='sfx'?5:((low||mode==='song')?30:60)};}
+function recommendation(){const s=state.system;const hasNvidia=Boolean(s.gpu&&s.gpu.some(g=>g.vramGB>=5.5));const low=(s.ramGB||0)<12||(s.availableGB!==null&&s.availableGB<4);const recBackend=s.appleSilicon?'apple':((hasNvidia&&mode==='song')?'cuda':'cpu');return {model:mode==='song'?'ace-step':(mode==='sfx'?'small-sfx':bgmModelChoice),backend:recBackend,seconds:mode==='sfx'?3:((low||mode==='song')?30:60)};}
 function applyRecommendation(){const r=recommendation();for(const k of ['model','backend'])$(k).value=r[k];const m=state.models[r.model];$('seconds').min=m.minSeconds??10;$('seconds').max=m.maxSeconds;$('seconds').value=durationOverrides[mode]??r.seconds;}
 function render(){if(!state)return;const auto=$('policy').value==='auto';$('backend').disabled=auto;for(const opt of $('backend').options){if(opt.value==='apple')opt.hidden=!state.system.appleSilicon;else if(opt.value==='cuda')opt.hidden=!state.system.gpu?.some(g=>g.vramGB>=5.5);}$('model').disabled=auto&&mode!=='bgm';for(const opt of $('model').options){const match=state.models[opt.value]?.mode===mode;opt.hidden=auto&&!match;opt.disabled=auto&&!match;}$('seconds').disabled=false;$('bgm').classList.toggle('selected',mode==='bgm');$('song').classList.toggle('selected',mode==='song');$('sfx').classList.toggle('selected',mode==='sfx');$('bgm-instrumental-help').hidden=mode!=='bgm';renderSongType();$('song-instrumental-wrap').hidden=mode!=='song';$('lyrics-wrap').hidden=mode!=='song'||songInstrumental();if($('song-lyric-tools-wrap'))$('song-lyric-tools-wrap').hidden=mode!=='song'||songInstrumental();if($('song-reference-wrap'))$('song-reference-wrap').hidden=mode!=='song';window.MusicPresets?.setMode(songInstrumental()?'bgm':mode);const m=state.models[$('model').value]||state.models['small-music'];const minSec=m.minSeconds??10;$('seconds').min=minSec;$('seconds').max=m.maxSeconds;if(+$('seconds').value<minSec)$('seconds').value=minSec;if(+$('seconds').value>m.maxSeconds)$('seconds').value=m.maxSeconds;renderDurationInput();if($('min'))$('min').textContent=minSec+'초';$('max').textContent='모델 최대 '+m.maxSeconds+'초';const r=recommendation();$('basis').textContent=r.basis||'사양 기반 · 실측 전';const warnings=[];if(!songAutoDuration()&&+$('seconds').value>r.seconds)warnings.push('초기 권장 길이를 초과했습니다. 메모리 부족이나 처리 지연 가능성을 실기기에서 확인해야 합니다.');if(mode==='song'&&!songInstrumental()&&!songAutoDuration())warnings.push('가사를 직접 입력하고 짧은 노래부터 시작하세요. '+(state.system.ramGB<12?'8GB급 환경에서는 안정적인 실행을 보장할 수 없습니다.':'30~60초부터 실제 실행 검증이 필요합니다.'));if(mode==='song'&&!songInstrumental()&&!songAutoDuration()&&$('lyrics').value.replace(/\[[^\]]*\]/g,'').replace(/\s/g,'').length>+$('seconds').value*4)warnings.push('현재 길이에 비해 가사가 많습니다. 일부 가사가 생략될 수 있으니 자동 길이를 선택하거나 길이를 늘려 주세요.');if(mode==='song'&&!m.vocals)warnings.push('선택한 모델은 가사 기반 노래를 지원하지 않습니다. ACE-Step을 선택하세요.');if(mode!=='song'&&m.mode!==mode)warnings.push(mode==='sfx'?'효과음 만들기에는 Small-SFX 모델을 선택하세요.':'배경음악 만들기에는 Small-Music 또는 Medium 모델을 선택하세요.');if($('backend').value==='apple'&&!state.system.appleSilicon)warnings.push('Apple Silicon이 감지되지 않았습니다. CPU 실행 방식을 선택하세요.');if($('backend').value==='cuda'&&!state.system.gpu?.some(g=>g.vramGB>=5.5))warnings.push('NVIDIA GPU 가속(CUDA)에 필요한 외장 그래픽이 감지되지 않았습니다. CPU를 선택하세요.');if(state.system.availableGB!==null&&state.system.availableGB<3)warnings.push('가용 메모리가 적습니다. 다른 앱을 종료하고 다시 진단하세요.');const warningHTML=warnings.map(w=>`<div class="warning">${escapeHTML(w)}</div>`).join('');if($('warnings').innerHTML!==warningHTML)$('warnings').innerHTML=warningHTML;$('save').disabled=false;}
-async function refresh(initial=false){try{$('refresh').disabled=true;const next=await api('/api/status');state=next;if(initial){mode=['bgm','song','sfx'].includes(next.settings.mode)?next.settings.mode:'bgm';if(next.settings.model==='medium')bgmModelChoice='medium';instrumentalSelected=next.settings.instrumental===true;$('song-quality').value=next.settings.songQuality==='quality'?'quality':'light';$('song-duration-mode').value=next.settings.durationMode==='manual'?'manual':'auto';$('peak-db').value=next.settings.peakDb??-8;if(next.settings.songExpert)window.ExpertSettings.load(next.settings.songExpert);if(Number.isInteger(next.settings.seconds))durationOverrides[mode]=next.settings.seconds;if(next.settings.exaoneApiKey)$('exaone-api-key').value=next.settings.exaoneApiKey;if(next.settings.exaoneTimeout!==undefined&&$('lyric-gen-timeout'))$('lyric-gen-timeout').value=String(next.settings.exaoneTimeout);$('policy').value=next.settings.policy;if(next.settings.policy==='auto')applyRecommendation();else for(const k of ['model','backend','seconds']){if(k==='seconds'){const m=next.models[$('model').value]||next.models['small-music'];$('seconds').min=m.minSeconds??10;$('seconds').max=m.maxSeconds;}if(next.settings[k]!==undefined)$(k).value=next.settings[k];}selectResultTab(mode,songInstrumental()?'instrumental':'vocal');}else if($('policy').value==='auto')applyRecommendation();const s=state.system;const rows=[['시스템',s.os==='Darwin'?'macOS':s.os],['프로세서',s.chip],['전체 메모리',s.ramGB===null?'확인 불가':s.ramGB+' GB'],['현재 가용량 ≈',s.availableGB===null?'확인 불가':s.availableGB+' GB'],['그래픽',s.appleSilicon?'Apple 통합 그래픽':s.gpu.map(g=>g.name+' / '+g.vramGB+' GB').join(', ')||'NVIDIA 미감지 · 기타 GPU 미확인'],['여유 저장 공간',s.diskFreeGB+' GB']];$('system').innerHTML=rows.map(([k,v])=>`<div class="metric"><span>${escapeHTML(k)}</span><b>${escapeHTML(v).replace(/(\d+(?:\.\d+)?) GB/g,'$1&nbsp;GB')}</b></div>`).join('');render();if(!initial)$('message').textContent='진단을 갱신했습니다. 직접 설정과 고정값은 유지됩니다.';}catch(e){$('message').textContent=e.message;}finally{$('refresh').disabled=false;}}
+async function refresh(initial=false){try{$('refresh').disabled=true;const next=await api('/api/status');state=next;if(initial){mode=['bgm','song','sfx'].includes(next.settings.mode)?next.settings.mode:'bgm';if(next.settings.model==='medium')bgmModelChoice='medium';instrumentalSelected=next.settings.instrumental===true;$('song-quality').value=next.settings.songQuality==='quality'?'quality':'light';$('peak-db').value=next.settings.peakDb??-8;if(next.settings.songExpert)window.ExpertSettings.load(next.settings.songExpert);if(Number.isInteger(next.settings.seconds))durationOverrides[mode]=next.settings.seconds;if(next.settings.exaoneApiKey)$('exaone-api-key').value=next.settings.exaoneApiKey;if(next.settings.exaoneTimeout!==undefined&&$('lyric-gen-timeout'))$('lyric-gen-timeout').value=String(next.settings.exaoneTimeout);$('policy').value=next.settings.policy;if(next.settings.policy==='auto')applyRecommendation();else for(const k of ['model','backend','seconds']){if(k==='seconds'){const m=next.models[$('model').value]||next.models['small-music'];$('seconds').min=m.minSeconds??10;$('seconds').max=m.maxSeconds;}if(next.settings[k]!==undefined)$(k).value=next.settings[k];}selectResultTab(mode,songInstrumental()?'instrumental':'vocal');}else if($('policy').value==='auto')applyRecommendation();const s=state.system;const accelSupport=s.appleSilicon?'Apple Silicon (MPS) 가속 지원':(s.gpu?.some(g=>g.vramGB>=5.5)?'NVIDIA CUDA 가속 지원':'CPU 기본 실행 (GPU 가속 미지원)');const rows=[['시스템',s.os==='Darwin'?'macOS':s.os],['프로세서',s.chip],['가속 지원',accelSupport],['전체 메모리',s.ramGB===null?'확인 불가':s.ramGB+' GB'],['현재 가용량 ≈',s.availableGB===null?'확인 불가':s.availableGB+' GB'],['그래픽',s.appleSilicon?'Apple 통합 그래픽':s.gpu.map(g=>g.name+' / '+g.vramGB+' GB').join(', ')||'NVIDIA 미감지 · 기타 GPU 미확인'],['여유 저장 공간',s.diskFreeGB+' GB']];$('system').innerHTML=rows.map(([k,v])=>`<div class="metric"><span>${escapeHTML(k)}</span><b>${escapeHTML(v).replace(/(\d+(?:\.\d+)?) GB/g,'$1&nbsp;GB')}</b></div>`).join('');render();if(!initial)$('message').textContent='진단을 갱신했습니다. 직접 설정과 고정값은 유지됩니다.';}catch(e){$('message').textContent=e.message;}finally{$('refresh').disabled=false;}}
 for(const id of ['bgm','song','sfx'])$(id).onclick=()=>{if(!state)return;switchComposerMode(id);dirty=true;sa3InstallError='';if($('policy').value!=='manual')applyRecommendation();selectResultTab(id,songInstrumental()?'instrumental':'vocal');render();jobs();};
 $('policy').onchange=()=>{if(!state)return;if($('policy').value!=='manual')applyRecommendation();dirty=true;render();};
 $('song-quality').onchange=()=>{dirty=true;qualityInstallError='';render();};
@@ -64,7 +67,6 @@ $('prepare-sa3-model').onclick=async()=>{
     catch(e){sa3InstallError=e.message;$('message').textContent=e.message;}
     finally{sa3InstallRequest=false;render();}
 };
-$('song-duration-mode').onchange=()=>{dirty=true;render();};
 $('model').oninput=()=>{if(mode==='bgm'&&['small-music','medium'].includes($('model').value))bgmModelChoice=$('model').value;sa3InstallError='';dirty=true;render();};
 $('backend').oninput=()=>{dirty=true;render();};
 $('seconds').oninput=()=>{durationDraft=false;durationOverrides[mode]=+$('seconds').value;dirty=true;render();};
@@ -78,7 +80,7 @@ $('save').onclick=async()=>{if(!state)return;try{await api('/api/settings',selec
 window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue='';}});
 refresh(true);
 
-function selectedSettings(){const duration=$('seconds-number');if(!songAutoDuration()&&(duration.value===''||!duration.checkValidity())){duration.focus();duration.reportValidity();throw Error(`음악 길이를 ${duration.min}~${duration.max}초 사이의 정수로 입력하세요.`);}if($('peak-db').value.trim()===''||!$('peak-db').checkValidity())throw Error('최대 게인은 -24~0dB 범위로 설정하세요.');return {peakDb:Number($('peak-db').value),policy:$('policy').value,mode,model:$('model').value,backend:$('backend').value,seconds:songAutoDuration()?null:+$('seconds').value,...(mode==='song'?{instrumental:songInstrumental(),durationMode:songInstrumental()?'manual':$('song-duration-mode').value,songQuality:$('song-quality').value,songExpert:window.ExpertSettings.value()}:{})};}
+function selectedSettings(){const duration=$('seconds-number');if(!songAutoDuration()&&(duration.value===''||!duration.checkValidity())){duration.focus();duration.reportValidity();throw Error(`음악 길이를 ${duration.min}~${duration.max}초 사이의 정수로 입력하세요.`);}if($('peak-db').value.trim()===''||!$('peak-db').checkValidity())throw Error('최대 게인은 -24~0dB 범위로 설정하세요.');return {peakDb:Number($('peak-db').value),policy:$('policy').value,mode,model:$('model').value,backend:$('backend').value,seconds:songAutoDuration()?null:+$('seconds').value,...(mode==='song'?{instrumental:songInstrumental(),durationMode:songInstrumental()?'manual':'auto',songQuality:$('song-quality').value,songExpert:window.ExpertSettings.value()}:{})};}
 const generateButton=document.querySelector('.generate');
 let submitting=false, activeJob=false, autoPlayPendingId=null, autoPlayEnabled=localStorage.getItem('music-autoplay-completed')==='true';
 $('lyrics').addEventListener('input',()=>render());
@@ -95,7 +97,7 @@ function renderSongQuality(){
     $('song-quality').setAttribute('aria-describedby',quality?'quality-install-title quality-install-message song-quality-help':'song-quality-help');
     notice.classList.toggle('is-ready',qualityReady);notice.classList.toggle('is-installing',busy&&!qualityReady);notice.classList.toggle('is-error',!!error&&!qualityReady);
     setText('quality-install-title',qualityReady?'1.7B 품질 모델이 설치되어 있습니다.':busy?'1.7B 품질 모델을 설치하고 있습니다.':error?'품질 모델 설치를 완료하지 못했습니다.':'1.7B 품질 모델이 아직 설치되어 있지 않습니다.');
-    const blocked=!baseReady?'먼저 왼쪽 사이드바에서 기본 실행 준비를 완료해 주세요.':activeJob?'현재 음악 생성이 끝나면 설치할 수 있습니다.':setup?.active&&!installing?'다른 모델 준비가 끝나면 설치할 수 있습니다.':'';
+    const blocked=!baseReady?'먼저 상단 [준비 상태]에서 기본 실행 준비를 완료해 주세요.':activeJob?'현재 음악 생성이 끝나면 설치할 수 있습니다.':setup?.active&&!installing?'다른 모델 준비가 끝나면 설치할 수 있습니다.':'';
     setText('quality-install-message',qualityReady?(setup?.active?'모델 설치를 마쳤습니다. 진행 중인 준비가 끝나면 사용할 수 있습니다.':'설치가 완료되어 노래 생성에 사용할 수 있습니다.'):busy?'다운로드와 설치가 진행 중입니다. 진행 상황 창에서 처리 내용을 확인할 수 있습니다.':(error?error+' ':'')+'처음 한 번 약 3.7GB를 다운로드하면 이 컴퓨터에서 사용할 수 있습니다. 아래 설치 버튼을 눌러 주세요.'+(blocked?' '+blocked:''));
     button.hidden=mode!=='song'||!quality||qualityReady;
     button.disabled=qualityInstallRequest||(!installing&&(activeJob||submitting||!!setup?.active||!baseReady));
@@ -117,7 +119,7 @@ function renderSa3Model(){
     notice.hidden=!isExtra;
     notice.classList.toggle('is-ready',ready);notice.classList.toggle('is-installing',busy&&!ready);notice.classList.toggle('is-error',!!error&&!ready);
     setText('sa3-install-title',ready?`${label} 모델이 설치되어 있습니다.`:busy?`${label} 모델을 설치하고 있습니다.`:error?`${label} 모델 설치를 완료하지 못했습니다.`:`${label} 모델이 아직 설치되어 있지 않습니다.`);
-    const blocked=!baseReady?'먼저 왼쪽 사이드바에서 기본 실행 준비를 완료해 주세요.':activeJob?'현재 작업이 끝나면 설치할 수 있습니다.':setup?.active&&!installing?'다른 모델 준비가 끝나면 설치할 수 있습니다.':'';
+    const blocked=!baseReady?'먼저 상단 [준비 상태]에서 기본 실행 준비를 완료해 주세요.':activeJob?'현재 작업이 끝나면 설치할 수 있습니다.':setup?.active&&!installing?'다른 모델 준비가 끝나면 설치할 수 있습니다.':'';
     setText('sa3-install-message',ready?(setup?.active?'모델 설치를 마쳤습니다. 진행 중인 준비가 끝나면 사용할 수 있습니다.':(selected==='medium'?'설치가 완료되어 최대 380초 고품질 배경음악 생성에 사용할 수 있습니다.':'설치가 완료되어 효과음 생성에 사용할 수 있습니다.')):busy?'다운로드와 설치가 진행 중입니다. 진행 상황 창에서 처리 내용을 확인할 수 있습니다.':(error?error+' ':'')+`처음 한 번 ${sizeText}를 다운로드하면 이 컴퓨터에서 사용할 수 있습니다. 아래 설치 버튼을 눌러 주세요.`+(blocked?' '+blocked:''));
     button.hidden=!isExtra||ready;
     button.disabled=sa3InstallRequest||(!installing&&(activeJob||submitting||!!setup?.active||!baseReady));
@@ -125,14 +127,14 @@ function renderSa3Model(){
     return {ready};
 }
 const originalRender=render;
-render=function(){originalRender();window.GenerationOptions.render(mode,songInstrumental());window.ExpertSettings.render(mode);updatePromptCount();generateButton.classList.toggle('is-generating',submitting||activeJob);$('song-duration-mode-wrap').hidden=mode!=='song'||songInstrumental();$('manual-duration-controls').hidden=songAutoDuration();$('auto-duration-help').hidden=!songAutoDuration();$('seconds').disabled=songAutoDuration();$('seconds-number').disabled=songAutoDuration();$('generation-status').classList.toggle('is-generating',submitting||activeJob);$('cancel-generation').hidden=!activeJob;$('cancel-generation').disabled=cancelling;$('cancel-generation').innerHTML=window.StudioIcons('stop')+' <span>'+(cancelling?'중단 요청 중…':'생성 중단')+'</span>';$('song-quality-wrap').hidden=mode!=='song';if(!state)return;const {quality,qualityReady}=renderSongQuality();const {ready:sa3ExtraReady}=renderSa3Model();setText('prompt-limit-help',mode==='song'?'음악 설명은 최대 2,000자까지 입력할 수 있습니다. 번역 후 음악 설명·내부 지시문을 포함해 엔진 한도인 256토큰을 검사합니다. 초과하면 줄일 수 있도록 안내하며 자동으로 자르지 않습니다.':'설명은 최대 2,000자까지 입력할 수 있습니다.');setText('prompt-language-help',state.translationReady?'한글로 입력한 설명은 내 컴퓨터에서 영어로 자동 변환해 생성에 사용합니다. 제목과 가사는 원문을 유지합니다.':'한글 자동 번역 모델이 준비되지 않았습니다. 영어 설명이나 프리셋을 사용해 주세요.');const selectedModel=$('model').value;const supported=(mode==='bgm'&&((selectedModel==='small-music'&&state.engines[$('backend').value])||(selectedModel==='medium'&&sa3ExtraReady)))||(mode==='sfx'&&selectedModel==='small-sfx'&&sa3ExtraReady)||(mode==='song'&&selectedModel==='ace-step'&&state.songEngines?.[$('backend').value]&&(!quality||qualityReady));generateButton.disabled=!supported||submitting||activeJob||window.StudioSetup?.active;const modeLabel=mode==='song'?'노래 만들기':(mode==='sfx'?'효과음 만들기':'배경음악 만들기');const buttonLabel=(submitting||activeJob)?'생성 중…':modeLabel;const buttonHTML=window.StudioIcons((submitting||activeJob)||mode==='song'?'music':'sparkles')+' <span>'+buttonLabel+'</span>';if(generateButton.innerHTML!==buttonHTML)generateButton.innerHTML=buttonHTML;$('new-track').setAttribute('aria-label',mode==='song'?'노래 새로 만들기':(mode==='sfx'?'효과음 새로 만들기':'배경음악 새로 만들기'));document.querySelector('.composer>.footnote').textContent=mode==='song'?(songInstrumental()?'ACE-Step · 가사와 보컬 없이 연주곡을 생성합니다. 첫 생성은 모델 준비 시간이 포함됩니다.':'ACE-Step · 입력한 가사로 보컬과 반주를 함께 생성합니다. 첫 생성은 모델 준비 시간이 포함됩니다.'):mode==='sfx'?'Stable Audio 3 Small-SFX · 자연음, 폴리, UI, SF 등 다양한 효과음을 생성합니다.':selectedModel==='medium'?'Stable Audio 3 Medium · 고품질 배경음악을 최대 380초까지 생성합니다.':(state.translationReady?'Small-Music 배경음악 생성 · 한글·영어 설명과 프리셋을 사용할 수 있습니다.':'Small-Music 배경음악 생성 · 영어 설명 또는 프리셋을 사용해 주세요.');document.querySelector('label[for="prompt"]').textContent=mode==='song'?'곡의 장르와 분위기를 설명해 주세요':(mode==='sfx'?'만들고 싶은 효과음을 설명해 주세요':'떠오르는 음악을 설명해 주세요');$('prompt').placeholder=mode==='sfx'?'나무 바닥 위를 천천히 걷는 발자국 소리와 멀리서 들리는 빗소리.':'햇살이 들어오는 카페, 따뜻한 피아노와 부드러운 드럼. 일상의 기록에 어울리는 차분한 음악.';$('track-title').placeholder=mode==='sfx'?'예: 밤비 내리는 창가 소리':'예: 햇살이 머무는 아침';};
-generateButton.onclick=async()=>{submitting=true;render();$('results-notice').textContent='';$('generation-status').textContent='생성 요청을 보내고 있습니다…';try{const selectedRefIds=mode==='song'?[...new Set([$('reference-audio-select')?.value,$('reference-audio-select-2')?.value].filter(Boolean))]:[];const created=await api('/api/generate',{settings:selectedSettings(),title:$('track-title').value,prompt:window.GenerationOptions.prompt($('prompt').value),negativePrompt:window.GenerationOptions.negative(),lyrics:songInstrumental()?'':$('lyrics').value,language:songInstrumental()?'unknown':$('language').value,referenceAudioIds:selectedRefIds});autoPlayPendingId=created.id;selectResultTab(created.settings.mode,created.settings.instrumental?'instrumental':'vocal');resultPages[resultPageKey()]=1;$('message').textContent='';$('results-notice').textContent='생성을 시작했습니다. 다른 작업은 완료 후 시작할 수 있습니다.';await jobs();$('results').scrollIntoView({block:'start',behavior:'instant'});}catch(e){$('message').textContent=e.message;$('generation-status').textContent=e.message;}finally{submitting=false;render();}};
+render=function(){originalRender();window.GenerationOptions.render(mode,songInstrumental());window.ExpertSettings.render(mode);window.StudioModes?.syncBeginnerView();updatePromptCount();generateButton.classList.toggle('is-generating',submitting||activeJob);$('manual-duration-controls').hidden=songAutoDuration();$('auto-duration-help').hidden=!songAutoDuration();$('seconds').hidden=mode==='sfx';const rl=document.querySelector('#manual-duration-controls .range-labels');if(rl)rl.hidden=mode==='sfx';$('seconds').disabled=songAutoDuration();$('seconds-number').disabled=songAutoDuration();$('generation-status').classList.toggle('is-generating',submitting||activeJob);$('cancel-generation').hidden=!activeJob;$('cancel-generation').disabled=cancelling;$('cancel-generation').innerHTML=window.StudioIcons('stop')+' <span>'+(cancelling?'중단 요청 중…':'생성 중단')+'</span>';$('song-quality-wrap').hidden=mode!=='song';if(!state)return;const {quality,qualityReady}=renderSongQuality();const {ready:sa3ExtraReady}=renderSa3Model();setText('prompt-limit-help',mode==='song'?'음악 설명은 최대 2,000자까지 입력할 수 있습니다. 번역 후 음악 설명·내부 지시문을 포함해 엔진 한도인 256토큰을 검사합니다. 초과하면 줄일 수 있도록 안내하며 자동으로 자르지 않습니다.':'설명은 최대 2,000자까지 입력할 수 있습니다.');setText('prompt-language-help',state.translationReady?'한글로 입력한 설명은 내 컴퓨터에서 영어로 자동 변환해 생성에 사용합니다. 제목과 가사는 원문을 유지합니다.':'한글 자동 번역 모델이 준비되지 않았습니다. 영어 설명이나 프리셋을 사용해 주세요.');const selectedModel=$('model').value;const supported=(mode==='bgm'&&((selectedModel==='small-music'&&state.engines[$('backend').value])||(selectedModel==='medium'&&sa3ExtraReady)))||(mode==='sfx'&&selectedModel==='small-sfx'&&sa3ExtraReady)||(mode==='song'&&selectedModel==='ace-step'&&state.songEngines?.[$('backend').value]&&(!quality||qualityReady));generateButton.disabled=!supported||submitting||activeJob||window.StudioSetup?.active;const modeLabel=mode==='song'?'노래 만들기':(mode==='sfx'?'효과음 만들기':'배경음악 만들기');const buttonLabel=(submitting||activeJob)?'생성 중…':modeLabel;const buttonHTML=window.StudioIcons((submitting||activeJob)||mode==='song'?'music':'sparkles')+' <span>'+buttonLabel+'</span>';if(generateButton.innerHTML!==buttonHTML)generateButton.innerHTML=buttonHTML;$('new-track').setAttribute('aria-label',mode==='song'?'노래 새로 만들기':(mode==='sfx'?'효과음 새로 만들기':'배경음악 새로 만들기'));document.querySelector('.composer>.footnote').textContent=mode==='song'?(songInstrumental()?'ACE-Step · 가사와 보컬 없이 연주곡을 생성합니다. 첫 생성은 모델 준비 시간이 포함됩니다.':'ACE-Step · 입력한 가사로 보컬과 반주를 함께 생성합니다. 첫 생성은 모델 준비 시간이 포함됩니다.'):mode==='sfx'?'Stable Audio 3 Small-SFX · 자연음, 폴리, UI, SF 등 다양한 효과음을 생성합니다.':selectedModel==='medium'?'Stable Audio 3 Medium · 고품질 배경음악을 최대 380초까지 생성합니다.':(state.translationReady?'Small-Music 배경음악 생성 · 한글·영어 설명과 프리셋을 사용할 수 있습니다.':'Small-Music 배경음악 생성 · 영어 설명 또는 프리셋을 사용해 주세요.');document.querySelector('label[for="prompt"]').textContent=mode==='sfx'?'효과음':'프롬프트';$('prompt').placeholder=mode==='sfx'?'나무 바닥 위를 천천히 걷는 발자국 소리와 멀리서 들리는 빗소리.':'햇살이 들어오는 카페, 따뜻한 피아노와 부드러운 드럼. 일상의 기록에 어울리는 차분한 음악.';$('track-title').placeholder=mode==='sfx'?'예: 밤비 내리는 창가 소리':'예: 햇살이 머무는 아침';};
+generateButton.onclick=async()=>{submitting=true;render();$('results-notice').textContent='';$('generation-status').textContent='생성 요청을 보내고 있습니다…';try{const selectedRefIds=mode==='song'?[...new Set([$('reference-audio-select')?.value,$('reference-audio-select-2')?.value].filter(Boolean))]:[];const created=await api('/api/generate',{settings:selectedSettings(),title:$('track-title').value,prompt:window.GenerationOptions.prompt($('prompt').value),negativePrompt:window.GenerationOptions.negative(),lyrics:songInstrumental()?'':$('lyrics').value,language:songInstrumental()?'unknown':$('language').value,referenceAudioIds:selectedRefIds});autoPlayPendingId=created.id;selectResultTab(created.settings.mode,created.settings.instrumental?'instrumental':'vocal');resultPages[resultPageKey()]=1;$('message').textContent='';$('results-notice').textContent='';await jobs();$('results').scrollIntoView({block:'start',behavior:'instant'});}catch(e){$('message').textContent=e.message;$('generation-status').textContent=e.message;}finally{submitting=false;render();}};
 $('cancel-generation').onclick=async()=>{autoPlayPendingId=null;if(cancelling)return;cancelling=true;render();try{await api('/api/cancel',{});$('message').textContent='생성 중단을 요청했습니다.';await jobs();}catch(e){$('message').textContent=e.message;}finally{cancelling=false;render();}};
 const statusLabels={queued:'대기 중',running:'생성 중',completed:'완료',cancelled:'취소됨',failed:'실패',interrupted:'중단됨'};
 let jobsSignature='';
 const RESULT_MODES=['bgm','song','sfx'];
 let resultMode='bgm';
-function getPageSize(mode){return mode==='song'?20:10;}
+function getPageSize(mode){if(document.documentElement.dataset.uiMode==='beginner')return 6;return mode==='song'?20:10;}
 const resultPages={bgm:1,'song-vocal':1,'song-instrumental':1,sfx:1};
 let songResultType='vocal';
 function resultPageKey(){return resultMode==='song'?'song-'+songResultType:resultMode;}
@@ -140,6 +142,7 @@ function matchesCurrentResults(job){return (job.settings.mode||'bgm')===resultMo
 function resultKind(){return resultMode==='song'?(songResultType==='instrumental'?'연주곡':'노래'):(resultMode==='sfx'?'효과음':'배경음악');}
 const selectedJobIds=new Set();
 let paginationSignature='';
+window.addEventListener('sorisoop:uimodechange',()=>{if(typeof jobHistory!=='undefined'&&typeof renderResultPage==='function'){resultPages[resultPageKey()]=1;renderResultPage(jobHistory.filter(matchesCurrentResults));}});
 function selectResultTab(value,songType){
     if(value==='song'&&['vocal','instrumental'].includes(songType))songResultType=songType;
     if(!RESULT_MODES.includes(value))value='bgm';
@@ -441,17 +444,13 @@ $('jobs').addEventListener('toggle',event=>{
     if(!item.matches('.result-disclosure')||!item.isConnected)return;
     if(item.open)expandedResults.add(item.dataset.jobId);else expandedResults.delete(item.dataset.jobId);
 },true);
-async function jobs(){try{const data=await api('/api/jobs');jobHistory=data.jobs;activeJob=data.jobs.some(j=>['queued','running'].includes(j.status));const visibleJobs=data.jobs.filter(matchesCurrentResults);for(const key of RESULT_MODES)$('count-'+key).textContent=data.jobs.filter(j=>(j.settings.mode||'bgm')===key).length;const latest=visibleJobs[0];const running=data.jobs.find(j=>['queued','running'].includes(j.status));const kind=resultKind();for(const type of ['vocal','instrumental'])$('count-song-'+type).textContent=data.jobs.filter(job=>job.settings.mode==='song'&&Boolean(job.settings.instrumental)===(type==='instrumental')).length;const runningKind=running?.settings.mode==='song'?(running.settings.instrumental?'연주곡':'노래'):(running?.settings.mode==='sfx'?'효과음':'배경음악');$('generation-status').textContent=running?`${running.title?.trim()?running.title.trim()+' · ':''}${running.phase||(runningKind+' 생성 중')} · ${formatDuration(Date.now()/1000-running.createdAt)} 경과`:latest?`${kind} 최근 작업: ${statusLabels[latest.status]||latest.status} · 총 ${visibleJobs.length}개`:`아직 생성한 ${kind} 결과가 없습니다.`;render();renderResultPage(visibleJobs);if(autoPlayPendingId){const target=data.jobs.find(j=>j.id===autoPlayPendingId);if(target&&target.status==='completed'){const id=autoPlayPendingId;autoPlayPendingId=null;if(autoPlayEnabled){setTimeout(()=>{const card=$('result-'+id);if(card){card.open=true;const audio=card.querySelector('audio');if(audio)audio.play().catch(()=>{});}},60);}}else if(target&&['failed','error','cancelled'].includes(target.status)){autoPlayPendingId=null;}}}catch(e){$('message').textContent=e.message;}}
+function formatDotMatrixClock(sec){const total=Math.max(0,Math.floor(Number(sec)||0));const m=Math.floor(total/60),s=total%60;return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');}
+let activeRunStartedAt=0;
+setInterval(()=>{const clockEl=document.querySelector('#generation-status.is-generating .dot-matrix-clock');if(clockEl&&activeRunStartedAt)clockEl.textContent=formatDotMatrixClock(Date.now()/1000-activeRunStartedAt);},1000);
+function accelerationDeviceLabel(backend){const s=state?.system;if(backend==='apple')return s?.chip?`${s.chip} (Apple Silicon 가속)`:'Apple Silicon 가속';if(backend==='cuda')return s?.gpu?.[0]?.name?`${s.gpu[0].name} (CUDA 가속)`:'NVIDIA GPU (CUDA 가속)';if(backend==='cpu')return s?.chip?`${s.chip} (CPU)`:'CPU';return '';}
+async function jobs(){try{const data=await api('/api/jobs');jobHistory=data.jobs;activeJob=data.jobs.some(j=>['queued','running'].includes(j.status));const visibleJobs=data.jobs.filter(matchesCurrentResults);for(const key of RESULT_MODES)$('count-'+key).textContent=data.jobs.filter(j=>(j.settings.mode||'bgm')===key).length;const latest=visibleJobs[0];const running=data.jobs.find(j=>['queued','running'].includes(j.status));const kind=resultKind();for(const type of ['vocal','instrumental'])$('count-song-'+type).textContent=data.jobs.filter(job=>job.settings.mode==='song'&&Boolean(job.settings.instrumental)===(type==='instrumental')).length;const runningKind=running?.settings.mode==='song'?(running.settings.instrumental?'연주곡':'노래'):(running?.settings.mode==='sfx'?'효과음':'배경음악');const runningDevice=running?accelerationDeviceLabel(running.settings?.backend):'';const statusEl=$('generation-status');const subEl=$('generation-sub-status');if(running){activeRunStartedAt=running.createdAt||Date.now()/1000;const infoLine=[running.title?.trim(),running.phase||(runningKind+' 생성 중')].filter(Boolean).join(' · ');statusEl.innerHTML=`<div class="dot-matrix-main"><span class="dot-matrix-label">${escapeHTML(runningKind)} 생성 중</span><span class="dot-matrix-clock">${formatDotMatrixClock(Date.now()/1000-activeRunStartedAt)}</span></div><div class="dot-matrix-scanner" aria-hidden="true"><span></span></div>`;if(subEl){let subHTML=infoLine?`<div>${escapeHTML(infoLine)}</div>`:'';if(runningDevice)subHTML+=`<div class="generation-accel-line"><strong>${escapeHTML(runningDevice)}</strong></div>`;subEl.innerHTML=subHTML;subEl.hidden=!subHTML;}}else{activeRunStartedAt=0;statusEl.textContent=latest?`${kind} 최근 작업: ${statusLabels[latest.status]||latest.status} · 총 ${visibleJobs.length}개`:`아직 생성한 ${kind} 결과가 없습니다.`;if(subEl){subEl.innerHTML='';subEl.hidden=true;}}render();renderResultPage(visibleJobs);if(autoPlayPendingId){const target=data.jobs.find(j=>j.id===autoPlayPendingId);if(target&&target.status==='completed'){const id=autoPlayPendingId;autoPlayPendingId=null;if(autoPlayEnabled){setTimeout(()=>{const card=$('result-'+id);if(card){card.open=true;const audio=card.querySelector('audio');if(audio)audio.play().catch(()=>{});}},60);}}else if(target&&['failed','error','cancelled'].includes(target.status)){autoPlayPendingId=null;}}}catch(e){$('message').textContent=e.message;}}
 setInterval(jobs,2000);jobs();
 $('new-track').onclick=()=>{resetDraftInputs();$('lyric-tools-status').textContent='';$('lyric-request-fallback').value='';$('lyric-request-fallback').hidden=true;$('message').textContent='새 '+(mode==='song'?'노래':(mode==='sfx'?'효과음':'배경음악'))+'를 만들 준비가 되었습니다.';updatePromptCount();$('track-title').focus();};
-
-const benchmarkButton=document.createElement('button');benchmarkButton.className='save';benchmarkButton.textContent='성능 측정 · 20초 배경음악';
-const sampleSongButton=document.createElement('button');sampleSongButton.className='save';sampleSongButton.textContent='샘플 노래 만들기';
-document.querySelector('.sidebar-tip').append(benchmarkButton,sampleSongButton);
-const SAMPLE_SONG_PROMPT='Korean city pop, retro synth bass, electric piano, funky rhythm guitar, dreamy female vocal, clear vocal diction, nostalgic night vibe, 108 BPM';
-const SAMPLE_SONG_LYRICS='[ko]\n[Intro]\n\n[Verse 1]\n차갑게 식어가는, 커피 한 잔\n창가에 비친, 네온사인 불빛\n오늘 하루도, 참 길어써-\n조용히 한숨을, 내쉬어 보네\n\n[Pre-Chorus]\n복자판 생각은, 이제 지우고\n가벼운 걸음으로, 나아가 볼까\n\n[Chorus]\n빈나는 별비치, 내게 쏟아져-\n가치 걸어가는, 이 밤의 거리\n조아하는 노래를, 흥얼거리며\n내일은 더 따스할, 꿈을 꾸네-';
-benchmarkButton.onclick=async()=>{if(!state)return;submitting=true;render();benchmarkButton.disabled=true;$('results-notice').textContent='';$('generation-status').textContent='성능 측정을 시작하고 있습니다…';try{const peakDb=($('peak-db').value.trim()!==''&&$('peak-db').checkValidity())?Number($('peak-db').value):-8;const created=await api('/api/generate',{settings:{policy:'manual',mode:'bgm',model:'small-music',backend:$('backend').value,seconds:20,peakDb},prompt:'Warm instrumental piano music with soft drums, no vocals.',negativePrompt:window.GenerationOptions.negative('bgm')});autoPlayPendingId=created.id;resultPages.bgm=1;selectResultTab('bgm');$('results-notice').textContent='20초 음악을 생성해 처리 시간을 측정합니다. 첫 실행은 초기화 시간이 포함됩니다.';await jobs();$('results').scrollIntoView({block:'start',behavior:'instant'});}catch(e){$('message').textContent=e.message;}finally{submitting=false;benchmarkButton.disabled=false;render();}};
-sampleSongButton.onclick=async()=>{if(!state)return;switchComposerMode('song',false);if($('policy').value!=='manual')applyRecommendation();$('prompt').value=SAMPLE_SONG_PROMPT;$('lyrics').value=SAMPLE_SONG_LYRICS;$('language').value='ko';localStorage.setItem('music-language','ko');$('song-duration-mode').value='auto';submitting=true;render();sampleSongButton.disabled=true;$('results-notice').textContent='';$('generation-status').textContent='샘플 노래 생성을 시작하고 있습니다…';try{const peakDb=($('peak-db').value.trim()!==''&&$('peak-db').checkValidity())?Number($('peak-db').value):-8;const songQuality=($('song-quality').value==='quality'&&state.songPlanners?.quality)?'quality':'light';const created=await api('/api/generate',{settings:{policy:'manual',mode:'song',model:'ace-step',backend:$('backend').value,seconds:null,durationMode:'auto',songQuality,songExpert:window.ExpertSettings.value(),peakDb},title:'샘플 노래 · 시티팝',prompt:SAMPLE_SONG_PROMPT,negativePrompt:window.GenerationOptions.negative('song'),lyrics:SAMPLE_SONG_LYRICS,language:'ko'});autoPlayPendingId=created.id;selectResultTab('song','vocal');resultPages[resultPageKey()]=1;$('message').textContent='';$('results-notice').textContent='샘플 노래 생성을 시작했습니다. 다른 작업은 완료 후 시작할 수 있습니다.';await jobs();$('results').scrollIntoView({block:'start',behavior:'instant'});}catch(e){$('message').textContent=e.message;$('generation-status').textContent=e.message;}finally{submitting=false;sampleSongButton.disabled=false;render();}};
 function resetDraftInputs(){
     delete promptDrafts[composerDraftKey()];
     $('track-title').value='';$('prompt').value='';window.GenerationOptions.reset();$('lyrics').value='';window.MusicPresets?.reset();updatePromptCount();
@@ -531,9 +530,38 @@ $('lyrics-example').onclick=()=>{
 };
 const LYRIC_REQUEST_PROMPT=[
     "당신은 AI 음악 생성 모델 'ACE-Step' 전용 작사가이자 프롬프트 엔지니어입니다.",
+    "",
     "아래 [필수 작성 규칙 - 반드시 준수할 것]과 사용자가 제공하는 [곡 기획 정보]를 바탕으로 ACE-Step에서 가사 누락과 발음 깨짐 없이 완벽하게 노래할 수 있는 '영문 스타일 프롬프트'와 '한국어 가사'를 작성해 주세요.",
     "",
-    "### [필수 작성 규칙 - 반드시 준수할 것]",
+    "# AceStep 가사 생성 가이드",
+    "",
+    "Caption(캡션)은 생성된 음악에 영향을 주는 가장 중요한 요소입니다.",
+    "단순한 스타일 단어, 쉼표로 구분된 태그, 복잡한 자연어 설명 등 다양한 형식을 지원합니다.",
+    "## 좋은 캡션을 쓰기 위한 5가지 방법:",
+    "\t1\t무작위 주사위 — UI의 랜덤 버튼을 클릭하여 예제 캡션이 어떻게 작성되었는지 확인하세요. 이를 템플릿으로 사용할 수 있습니다.",
+    "\t2\tFormat 자동 재작성 — 간단히 쓴 내용을 LLM이 자동으로 확장해 주는 format 기능을 활용하세요.",
+    "\t3\tCoT 재작성 — LM이 초기화된 경우, Chain-of-Thought를 통해 캡션을 최적화하고 확장할 수 있습니다.",
+    "\t4\t오디오에서 캡션 추출 — 입력 오디오를 캡션으로 변환하는 기능도 제공합니다. 완벽하진 않아도 시작점으로 충분합니다.",
+    "\t5\tSimple Mode — 간단한 곡 설명만 입력하면 LM이 캡션, 가사, 메타데이터를 모두 자동으로 생성합니다.",
+    "",
+    "캡션 작성을 위한 차원들: 주장(Style), 감정(Emotion), 악기(Instruments), 음색 질감(Timbre Texture), 시대(Era), 프로덕션 스타일(Production Style), 보컬 특징(Vocal), 속도/리듬(Speed) 등을 조합하세요.",
+    "## 실질적인 원칙:",
+    "\t1\t구체적으로 쓰세요 — \"슬픈 노래\"보다는 \"피아노 발라드와 허스키한 여성 보컬\"이 낫습니다.",
+    "\t2\t여러 차원을 조합하세요 — 스타일+감정+악기+질감을 조합하면 의도를 더 정확히 고착시킬 수 있습니다.",
+    "\t3\t충돌하는 단어를 피하세요 — \"클래식 현악기\"와 \"하드코어 메탈\"을 동시에 원하면 결과가 모호해질 수 있습니다.",
+    "",
+    "## 가사(Lyrics)에 대하여: 시간적 시나리오",
+    "캡션이 음악의 \"전체 초상화\"라면, **가사는 음악의 \"시간적 시나리오\"**입니다.",
+    "\t•\t가사 텍스트 그 자체",
+    "\t•\t구조 태그 ([Verse], [Chorus], [Bridge]...)",
+    "\t•\t보컬 스타일 힌트 ([raspy vocal], [whispered]...)",
+    "\t•\t악기 연주 구간 ([guitar solo], [drum break]...)",
+    "\t•\t에너지 변화 ([building energy], [explosive drop]...)",
+    "",
+    "구조 태그가 핵심입니다. 각 섹션이 시작될 때 [Verse], [Chorus] 등의 태그를 사용하여 모델에게 현재 구간의 성격을 알려주세요. [Chorus - anthemic]과 같이 세부 묘사를 추가할 수도 있습니다.",
+    "모델과의 일관성 유지: 캡션에서 \"피아노 발라드\"라고 했다면 가사 구간에서 [Guitar Solo - electric]과 같은 충돌하는 태그를 쓰지 않도록 주의하세요.",
+    "",
+    "# [필수 작성 규칙 - 반드시 준수할 것]",
     "1. **음절 수 엄격 제한 (가사 누락 방지)**",
     "   - 모든 가사는 **한 줄당 공백 제외 6~10음절(3~4어절)** 이내로 짧게 끊어 작성하세요. (절대 12음절을 넘기지 마세요.)",
     "   - 1절(Verse 1)과 2절(Verse 2), 각 후렴구(Chorus)의 대응하는 줄은 음절 수와 리듬감을 동일하게 맞추세요.",
@@ -552,7 +580,8 @@ const LYRIC_REQUEST_PROMPT=[
     "4. **ACE-Step 영문 스타일 프롬프트 세팅**",
     "   - 가사 출력 전, 곡의 장르, 악기 구성, 분위기, 보컬 성별/음색, 정확한 템포(예: `110 BPM`)를 쉼표로 구분한 영문 태그 형태로 먼저 제시하세요.",
     "",
-    "### [곡 기획 정보]",
+    "",
+    "# [곡 기획 정보]",
     "- **주제 및 스토리**: (예: 퇴근길 밤거리를 걸으며 느끼는 위로와 여유)",
     "- **장르 및 분위기**: (예: 시티팝, 레트로, 몽환적인, 따뜻한)",
     "- **보컬 스타일**: (예: 부드러운 여성 보컬, 공기 반 소리 반)",
@@ -986,15 +1015,23 @@ async function refreshReferenceAudios(){
         if($('reference-audio-status'))$('reference-audio-status').textContent=error.message;
     }
 }
-if($('reference-audio-upload-btn')&&$('reference-audio-file')){
-    $('reference-audio-upload-btn').onclick=()=>$('reference-audio-file').click();
+let uploadTargetSlot=0;
+if($('reference-audio-file')){
+    if($('reference-audio-upload-btn'))$('reference-audio-upload-btn').onclick=()=>{uploadTargetSlot=0;$('reference-audio-file').click();};
+    if($('reference-audio-upload-btn-2'))$('reference-audio-upload-btn-2').onclick=()=>{uploadTargetSlot=1;$('reference-audio-file').click();};
     $('reference-audio-file').onchange=async event=>{
         const file=event.target.files?.[0];
         event.target.value='';
         if(!file)return;
+        const targetSlot=REFERENCE_AUDIO_SLOTS[uploadTargetSlot]||REFERENCE_AUDIO_SLOTS[0];
+        if($(targetSlot.selectId)?.value){
+            const ok=confirm(`보컬 음성 ${uploadTargetSlot+1}에 이미 음성이 등록되어 있습니다. 새 음성으로 변경하시겠습니까?`);
+            if(!ok)return;
+        }
         const status=$('reference-audio-status');
-        $('reference-audio-upload-btn').disabled=true;
-        status.textContent='참조 오디오를 등록하고 있습니다…';
+        if($('reference-audio-upload-btn'))$('reference-audio-upload-btn').disabled=true;
+        if($('reference-audio-upload-btn-2'))$('reference-audio-upload-btn-2').disabled=true;
+        status.textContent='보컬 음성을 등록하고 있습니다…';
         try{
             const res=await fetch('/api/reference-audio',{
                 method:'POST',
@@ -1002,17 +1039,17 @@ if($('reference-audio-upload-btn')&&$('reference-audio-file')){
                 body:file
             });
             const data=await res.json();
-            if(!res.ok)throw Error(data.error||'참조 오디오 등록에 실패했습니다.');
-            const targetSlot=REFERENCE_AUDIO_SLOTS.find(slot=>!$(slot.selectId)?.value)||REFERENCE_AUDIO_SLOTS[0];
+            if(!res.ok)throw Error(data.error||'보컬 음성 등록에 실패했습니다.');
             localStorage.setItem(targetSlot.storageKey,data.item.id);
             await refreshReferenceAudios();
             $(targetSlot.selectId).value=data.item.id;
             renderReferenceAudioControls();
-            status.textContent=`'${data.item.name}' 샘플을 등록해 선택했습니다.`;
+            status.textContent=`'${data.item.name}'을(를) 보컬 음성 ${uploadTargetSlot+1}(으)로 등록했습니다.`;
         }catch(error){
             status.textContent=error.message;
         }finally{
-            $('reference-audio-upload-btn').disabled=false;
+            if($('reference-audio-upload-btn'))$('reference-audio-upload-btn').disabled=false;
+            if($('reference-audio-upload-btn-2'))$('reference-audio-upload-btn-2').disabled=false;
         }
     };
 }
@@ -1033,7 +1070,7 @@ for(const slot of REFERENCE_AUDIO_SLOTS){
             const id=$(slot.selectId)?.value;
             if(!id)return;
             const item=referenceAudios.find(entry=>entry.id===id);
-            if(!confirm(`참조 오디오 '${item?item.name:id}'을(를) 삭제하시겠습니까?`))return;
+            if(!confirm(`보컬 음성 '${item?item.name:id}'을(를) 삭제하시겠습니까?`))return;
             delBtn.disabled=true;
             try{
                 await api('/api/reference-audio/delete',{id});
@@ -1042,7 +1079,7 @@ for(const slot of REFERENCE_AUDIO_SLOTS){
                     if($(s.selectId)?.value===id)$(s.selectId).value='';
                 }
                 await refreshReferenceAudios();
-                if($('reference-audio-status'))$('reference-audio-status').textContent='참조 오디오를 삭제했습니다.';
+                if($('reference-audio-status'))$('reference-audio-status').textContent='보컬 음성을 삭제했습니다.';
             }catch(error){
                 if($('reference-audio-status'))$('reference-audio-status').textContent=error.message;
             }finally{
@@ -1051,4 +1088,15 @@ for(const slot of REFERENCE_AUDIO_SLOTS){
         };
     }
 }
+window.addEventListener('sorisoop:referenceadded',async event=>{
+    const item=event.detail?.item;
+    if(!item?.id)return;
+    const idx=Number.isInteger(event.detail?.slotIndex)?event.detail.slotIndex:0;
+    const targetSlot=REFERENCE_AUDIO_SLOTS[idx]||REFERENCE_AUDIO_SLOTS[0];
+    localStorage.setItem(targetSlot.storageKey,item.id);
+    await refreshReferenceAudios();
+    if($(targetSlot.selectId))$(targetSlot.selectId).value=item.id;
+    renderReferenceAudioControls();
+    if($('reference-audio-status'))$('reference-audio-status').textContent=`'${item.name}'을(를) 보컬 음성 ${idx+1}(으)로 등록했습니다.`;
+});
 refreshReferenceAudios();

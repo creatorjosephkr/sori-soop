@@ -105,7 +105,10 @@
             row.append(head);if(f.type!=='toggle')row.append(input);fields.append(row);
         }
         $('close-expert-help').onclick=$('confirm-expert-help').onclick=()=>$('expert-help-dialog').close();
-        $('expert-help-dialog').addEventListener('click',e=>{if(e.target===$('expert-help-dialog'))$('expert-help-dialog').close();});
+        const helpDialog=$('expert-help-dialog');
+        let helpDownOnBackdrop=false;
+        helpDialog.addEventListener('mousedown',e=>{helpDownOnBackdrop=e.target===helpDialog;});
+        helpDialog.addEventListener('click',e=>{if(helpDownOnBackdrop&&e.target===helpDialog)helpDialog.close();helpDownOnBackdrop=false;});
         try{values=clean(JSON.parse(localStorage.getItem(STORAGE)||'null'));}catch(e){values={...DEFAULTS};}
         sync();
     }
