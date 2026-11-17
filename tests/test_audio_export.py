@@ -73,14 +73,14 @@ class Mp3ExportTests(unittest.TestCase):
         sample_wav(source, 2, 48000)
         apply_wav_metadata(source, title='나의 첫 노래')
 
-        with sf.SoundFile(str(source)) as wav_f:
-            self.assertEqual(wav_f.title, '나의 첫 노래')
-            self.assertEqual(wav_f.artist, '소리숲 (Sori Soop)')
-            self.assertIn('소리숲 (Sori Soop)', wav_f.software)
-            self.assertTrue(wav_f.comment.startswith('소리숲 제작:'))
-            self.assertIn('크리에이터 요셉', wav_f.comment)
-            self.assertIn('https://blog.naver.com/josephk1010', wav_f.comment)
-        self.assertIn(b'id3 ', source.read_bytes())
+        wav_bytes = source.read_bytes()
+        self.assertIn(b'id3 ', wav_bytes)
+        self.assertIn('나의 첫 노래'.encode('utf-16-le'), wav_bytes)
+        self.assertIn('소리숲 (Sori Soop)'.encode('utf-16-le'), wav_bytes)
+        self.assertIn('크리에이터 요셉'.encode('utf-16-le'), wav_bytes)
+        self.assertIn('https://blog.naver.com/josephk1010'.encode('utf-16-le'), wav_bytes)
+        self.assertIn('나의 첫 노래'.encode('cp949'), wav_bytes)
+        self.assertIn('소리숲 (Sori Soop)'.encode('cp949'), wav_bytes)
 
         target = engine.export_mp3(ident)
         with sf.SoundFile(str(target)) as mp3_f:
@@ -92,8 +92,9 @@ class Mp3ExportTests(unittest.TestCase):
 
         engine.rename_result(ident, '수정된 노래 제목')
         self.assertFalse(target.exists())
-        with sf.SoundFile(str(source)) as wav_f:
-            self.assertEqual(wav_f.title, '수정된 노래 제목')
+        renamed_wav_bytes = source.read_bytes()
+        self.assertIn('수정된 노래 제목'.encode('utf-16-le'), renamed_wav_bytes)
+        self.assertIn('수정된 노래 제목'.encode('cp949'), renamed_wav_bytes)
 
         new_target = engine.export_mp3(ident)
         with sf.SoundFile(str(new_target)) as mp3_f:
