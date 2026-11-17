@@ -397,6 +397,7 @@ class Handler(BaseHTTPRequestHandler):
         raw = path.read_bytes()
         self.send_response(200)
         self.send_header('Content-Type', {'html': 'text/html; charset=utf-8', 'css': 'text/css', 'js': 'text/javascript', 'svg': 'image/svg+xml', 'ico': 'image/x-icon', 'png': 'image/png', 'ttf': 'font/ttf'}[path.suffix[1:]])
+        self.send_header('Cache-Control', 'no-store')
         self.send_header('Content-Length', str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)

@@ -3331,10 +3331,26 @@ html[data-theme="dark-gray"] .expert-group {
 
 /* Running/queued result cards in dark mode */
 .result-item.running,
-.result-item.queued {
+.result-item.queued,
+.result-disclosure.running,
+.result-disclosure.queued {
   background: var(--accent-soft) !important;
   border-color: var(--accent-border) !important;
   color: var(--text-primary) !important;
+}
+
+html[data-theme="dark-gray"] .result-item.running,
+html[data-theme="dark-gray"] .result-item.queued,
+html[data-theme="dark-gray"] .result-disclosure.running,
+html[data-theme="dark-gray"] .result-disclosure.queued {
+  background: #1e2822 !important;
+  border-color: #3d5b49 !important;
+  color: var(--text-primary) !important;
+}
+
+html[data-theme="dark-gray"] .result-item.running > .result-summary:hover,
+html[data-theme="dark-gray"] .result-item.queued > .result-summary:hover {
+  background: #25332b !important;
 }
 
 .result-loading {
@@ -3344,5 +3360,7 @@ html[data-theme="dark-gray"] .expert-group {
 }
 
 html[data-theme="dark-gray"] .result-loading {
+  background: #212528 !important;
+  border-color: #3d5b49 !important;
   color: #92d9ac !important;
 }
