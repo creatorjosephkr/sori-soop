@@ -15,10 +15,112 @@ ROOT=Path(__file__).resolve().parent.parent
 VERSION=(ROOT/'VERSION').read_text(encoding='utf-8').strip()
 
 
+def build_open_folder_app(staging_dir, version):
+    from PIL import Image, ImageDraw
+    app_dir = staging_dir / '다른 폴더 열기.app'
+    shutil.rmtree(app_dir, ignore_errors=True)
+    macos_dir = app_dir / 'Contents' / 'MacOS'
+    res_dir = app_dir / 'Contents' / 'Resources'
+    macos_dir.mkdir(parents=True, exist_ok=True)
+    res_dir.mkdir(parents=True, exist_ok=True)
+
+    # Generate custom folder-open icon (1024x1024 supersampled from 2048x2048)
+    sz = 2048
+    img = Image.new('RGBA', (sz, sz), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img, 'RGBA')
+    def s(v):
+        return v * (sz / 24.0)
+    # Soft sage squircle background
+    draw.rounded_rectangle([s(1.5), s(1.5), sz - s(1.5), sz - s(1.5)], radius=s(5.2), fill=(232, 242, 228, 255), outline=(146, 182, 140, 255), width=int(s(0.7)))
+    # Folder tab & body
+    draw.rounded_rectangle([s(4.5), s(6.2), s(11.5), s(10.5)], radius=s(1.3), fill=(68, 116, 84, 255))
+    draw.rounded_rectangle([s(4.5), s(8.0), s(19.5), s(18.0)], radius=s(1.8), fill=(86, 142, 104, 255))
+    draw.rounded_rectangle([s(4.5), s(9.6), s(19.5), s(18.0)], radius=s(1.6), fill=(116, 174, 132, 255))
+    # Plus / open badge in center of folder
+    cx, cy = s(12.0), s(13.8)
+    r = s(2.4)
+    draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(246, 250, 244, 255))
+    lw = int(s(0.65))
+    draw.line([(cx - s(1.1), cy), (cx + s(1.1), cy)], fill=(42, 84, 58, 255), width=lw)
+    draw.line([(cx, cy - s(1.1)), (cx, cy + s(1.1))], fill=(42, 84, 58, 255), width=lw)
+
+    icon_png = img.resize((1024, 1024), Image.Resampling.LANCZOS)
+    icns_path = res_dir / 'folder-open.icns'
+    iconset = ROOT / 'build/folder-open.iconset'
+    shutil.rmtree(iconset, ignore_errors=True)
+    iconset.mkdir(parents=True, exist_ok=True)
+    for pt in (16, 32, 128, 256, 512):
+        icon_png.resize((pt, pt), Image.Resampling.LANCZOS).save(iconset / f'icon_{pt}x{pt}.png', format='PNG')
+        icon_png.resize((pt * 2, pt * 2), Image.Resampling.LANCZOS).save(iconset / f'icon_{pt}x{pt}@2x.png', format='PNG')
+    try:
+        subprocess.run(['iconutil', '-c', 'icns', '-o', str(icns_path), str(iconset)], check=True)
+    except Exception:
+        icon_png.save(icns_path)
+    shutil.rmtree(iconset, ignore_errors=True)
+
+    info_plist = {
+        'CFBundleName': '다른 폴더 열기',
+        'CFBundleDisplayName': '다른 폴더 열기',
+        'CFBundleIdentifier': 'com.creatorjoseph.sorisoop.openfolder',
+        'CFBundleVersion': version,
+        'CFBundleShortVersionString': version,
+        'CFBundlePackageType': 'APPL',
+        'CFBundleExecutable': 'open_other_folder',
+        'CFBundleIconFile': 'folder-open',
+        'LSMinimumSystemVersion': '14.0',
+        'LSUIElement': True,
+        'NSHighResolutionCapable': True,
+    }
+    with (app_dir / 'Contents' / 'Info.plist').open('wb') as f:
+        plistlib.dump(info_plist, f)
+
+    script = '''#!/bin/sh
+DMG_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+APP_SRC="$DMG_DIR/SoriSoop.app"
+/usr/bin/osascript - "$APP_SRC" <<'APPLESCRIPT'
+on run argv
+    set appSrc to item 1 of argv
+    try
+        set chosenFolder to choose folder with prompt "소리숲(SoriSoop)을 설치하거나 열 다른 폴더를 선택하세요:"
+    on error
+        return
+    end try
+    set targetPosix to POSIX path of chosenFolder
+    try
+        set dialogRes to display dialog "선택한 폴더(" & targetPosix & ")에 소리숲을 바로 복사해 설치할까요, 아니면 폴더만 열까요?" buttons {"취소", "폴더만 열기", "여기에 바로 설치"} default button "여기에 바로 설치" with title "소리숲 다른 폴더 설치"
+    on error
+        return
+    end try
+    set btn to button returned of dialogRes
+    if btn is "폴더만 열기" then
+        tell application "Finder"
+            open chosenFolder
+            activate
+        end tell
+    else if btn is "여기에 바로 설치" then
+        do shell script "/usr/bin/ditto " & quoted form of appSrc & " " & quoted form of (targetPosix & "SoriSoop.app")
+        tell application "Finder"
+            open chosenFolder
+            try
+                select POSIX file (targetPosix & "SoriSoop.app")
+            end try
+            activate
+        end tell
+    end if
+end run
+APPLESCRIPT
+'''
+    exe_path = macos_dir / 'open_other_folder'
+    exe_path.write_text(script, encoding='utf-8')
+    exe_path.chmod(0o755)
+    subprocess.run(['codesign', '--force', '--deep', '--sign', '-', str(app_dir)], check=True)
+    subprocess.run(['SetFile', '-a', 'E', str(app_dir)], check=False)
+
+
 def build_dmg_background(out_path, version):
     from PIL import Image, ImageDraw, ImageFont
     scale = 2
-    w, h = 660 * scale, 420 * scale
+    w, h = 740 * scale, 430 * scale
     img = Image.new('RGBA', (w, h), (242, 246, 238, 255))
     draw = ImageDraw.Draw(img, 'RGBA')
 
@@ -55,7 +157,7 @@ def build_dmg_background(out_path, version):
 
     font_title = load_font(23, 750)
     font_sub = load_font(13, 500)
-    font_guide = load_font(14, 700)
+    font_guide = load_font(13.5, 700)
     font_tip = load_font(11, 450)
 
     # Header title & subtitle
@@ -64,11 +166,10 @@ def build_dmg_background(out_path, version):
     draw.text((w // 2, 42 * scale), title_text, font=font_title, fill=(33, 64, 46, 255), anchor='mm')
     draw.text((w // 2, 70 * scale), sub_text, font=font_sub, fill=(88, 112, 95, 255), anchor='mm')
 
-    # Left (SoriSoop.app) and Right (Applications) drop zone cards
-    # Note: Finder icon position {x, y} places the icon center slightly above y and label below
-    for cx in (180 * scale, 480 * scale):
+    # Cards: SoriSoop.app (145), Applications (435), 다른 폴더 열기 (605)
+    for cx in (145 * scale, 435 * scale):
         cy = 198 * scale
-        rx, ry = 76 * scale, 82 * scale
+        rx, ry = 74 * scale, 82 * scale
         draw.rounded_rectangle(
             [cx - rx, cy - ry, cx + rx, cy + ry],
             radius=22 * scale,
@@ -77,23 +178,32 @@ def build_dmg_background(out_path, version):
             width=2 * scale,
         )
 
-    # Center arrow badge + chevrons pointing Left -> Right
-    ax, ay = 330 * scale, 192 * scale
-    # Soft pill track behind arrow
+    # Secondary card for '다른 폴더 열기' button on the right
+    ocx, ocy = 605 * scale, 198 * scale
+    orx, ory = 74 * scale, 82 * scale
     draw.rounded_rectangle(
-        [ax - 52 * scale, ay - 22 * scale, ax + 52 * scale, ay + 22 * scale],
+        [ocx - orx, ocy - ory, ocx + orx, ocy + ory],
         radius=22 * scale,
+        fill=(238, 245, 234, 225),
+        outline=(180, 204, 172, 255),
+        width=2 * scale,
+    )
+
+    # Center arrow badge + chevrons pointing Left (145) -> Right (435)
+    ax, ay = 290 * scale, 192 * scale
+    draw.rounded_rectangle(
+        [ax - 48 * scale, ay - 21 * scale, ax + 48 * scale, ay + 21 * scale],
+        radius=21 * scale,
         fill=(225, 238, 220, 255),
         outline=(176, 204, 166, 255),
         width=2 * scale,
     )
-    # Three progressive chevrons
     chevron_colors = [
         (120, 162, 132, 180),
         (76, 126, 92, 220),
         (42, 90, 62, 255),
     ]
-    offsets = [-22 * scale, 0, 22 * scale]
+    offsets = [-20 * scale, 0, 20 * scale]
     for dx, col in zip(offsets, chevron_colors):
         cx = ax + dx
         pts = [
@@ -104,7 +214,7 @@ def build_dmg_background(out_path, version):
         draw.line(pts, fill=col, width=4 * scale, joint='curve')
 
     # Bottom instruction banner
-    bx1, by1, bx2, by2 = 44 * scale, 316 * scale, w - 44 * scale, 384 * scale
+    bx1, by1, bx2, by2 = 40 * scale, 322 * scale, w - 40 * scale, 392 * scale
     draw.rounded_rectangle(
         [bx1, by1, bx2, by2],
         radius=14 * scale,
@@ -112,12 +222,12 @@ def build_dmg_background(out_path, version):
         outline=(188, 210, 178, 255),
         width=2 * scale,
     )
-    guide_text = '왼쪽 소리숲 아이콘을 오른쪽 Applications 폴더로 드래그해 설치하세요'
+    guide_text = "소리숲 아이콘을 Applications로 드래그하거나 오른쪽 '다른 폴더 열기'를 실행하세요"
     tip_text = "처음 실행 시 보안 안내가 뜨면 앱 아이콘을 우클릭(Control+클릭)한 뒤 '열기'를 선택해 주세요"
-    draw.text((w // 2, 339 * scale), guide_text, font=font_guide, fill=(36, 70, 50, 255), anchor='mm')
-    draw.text((w // 2, 364 * scale), tip_text, font=font_tip, fill=(82, 108, 88, 255), anchor='mm')
+    draw.text((w // 2, 346 * scale), guide_text, font=font_guide, fill=(36, 70, 50, 255), anchor='mm')
+    draw.text((w // 2, 371 * scale), tip_text, font=font_tip, fill=(82, 108, 88, 255), anchor='mm')
 
-    final_img = img.resize((660, 420), Image.Resampling.LANCZOS).convert('RGB')
+    final_img = img.resize((740, 430), Image.Resampling.LANCZOS).convert('RGB')
     out_path.parent.mkdir(parents=True, exist_ok=True)
     final_img.save(out_path, format='PNG', dpi=(72, 72))
 
@@ -187,6 +297,7 @@ def main():
         subprocess.run(['codesign','--verify','--deep','--strict',str(bundle)],check=True)
         staging=ROOT/'build/dmg';shutil.rmtree(staging,ignore_errors=True);staging.mkdir()
         shutil.copytree(bundle,staging/'SoriSoop.app',symlinks=True);(staging/'Applications').symlink_to('/Applications')
+        build_open_folder_app(staging, VERSION)
         shutil.copy2(ROOT/'RELEASE_README.txt',staging/'먼저 읽어주세요.txt')
         subprocess.run(['SetFile','-a','V',str(staging/'먼저 읽어주세요.txt')],check=False)
         bg_path=staging/'.background'/'background.png'
@@ -209,14 +320,17 @@ def main():
                     set current view of container window to icon view
                     set toolbar visible of container window to false
                     set statusbar visible of container window to false
-                    set the bounds of container window to {{200, 140, 860, 588}}
+                    set the bounds of container window to {{180, 140, 920, 598}}
                     set viewOptions to the icon view options of container window
                     set arrangement of viewOptions to not arranged
-                    set icon size of viewOptions to 100
+                    set icon size of viewOptions to 96
                     set text size of viewOptions to 13
                     set background picture of viewOptions to file ".background:background.png"
-                    set position of item "SoriSoop.app" of container window to {{180, 190}}
-                    set position of item "Applications" of container window to {{480, 190}}
+                    set position of item "SoriSoop.app" of container window to {{145, 190}}
+                    set position of item "Applications" of container window to {{435, 190}}
+                    try
+                        set position of item "다른 폴더 열기.app" of container window to {{605, 190}}
+                    end try
                     try
                         set position of item ".background" of container window to {{1000, 1000}}
                     end try
