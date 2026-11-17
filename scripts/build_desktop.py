@@ -128,7 +128,18 @@ def main():
     import uv
     image=Image.open(ROOT/'assets/app-icon.png')
     icon=ROOT/'assets'/('app-icon.icns' if sys.platform=='darwin' else 'app-icon.ico')
-    image.save(icon)
+    if sys.platform=='darwin':
+        iconset=ROOT/'build/app-icon.iconset'
+        shutil.rmtree(iconset,ignore_errors=True);iconset.mkdir(parents=True,exist_ok=True)
+        for pt in (16,32,128,256,512):
+            image.resize((pt,pt),Image.Resampling.LANCZOS).save(iconset/f'icon_{pt}x{pt}.png',format='PNG')
+            image.resize((pt*2,pt*2),Image.Resampling.LANCZOS).save(iconset/f'icon_{pt}x{pt}@2x.png',format='PNG')
+        try:
+            subprocess.run(['iconutil','-c','icns','-o',str(icon),str(iconset)],check=True)
+        except Exception:
+            image.save(icon)
+    else:
+        image.save(icon,sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])
     licenses=ROOT/'build/third-party-licenses';shutil.rmtree(licenses,ignore_errors=True);licenses.mkdir(parents=True)
     for dist in importlib.metadata.distributions():
         for entry in dist.files or []:

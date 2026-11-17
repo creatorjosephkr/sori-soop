@@ -25,6 +25,7 @@
             btn.classList.toggle('is-active',active);
             btn.setAttribute('aria-pressed',String(active));
         }
+        fetch('/api/window-theme',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({theme})}).catch(()=>{});
         window.dispatchEvent(new CustomEvent('sorisoop:themechange',{detail:{theme}}));
     }
 

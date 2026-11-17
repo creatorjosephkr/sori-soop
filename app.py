@@ -25,6 +25,7 @@ from audio_processing import validate_peak_db
 ROOT = Path(__file__).resolve().parent
 DATA = Path(os.environ.get('LOCAL_MUSIC_DATA', str(Path.home() / '.local-music-studio')))
 LOCK = threading.Lock()
+THEME_HOOK = None
 PAYPAL_SPONSOR_URL = 'https://www.paypal.com/paypalme/tech1010?locale.x=ko_KR&country.x=KR'
 
 def open_paypal():
@@ -469,6 +470,16 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply(installer.start(body.get('component')),202)
             except (ValueError,RuntimeError) as error:
                 return self.reply({'error':str(error)},400)
+        if self.path == '/api/window-theme':
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                body = json.loads(self.rfile.read(length)) if 0 < length <= 256 else {}
+                theme = body.get('theme', 'white') if isinstance(body, dict) else 'white'
+                if THEME_HOOK:
+                    THEME_HOOK(theme)
+                return self.reply({'ok': True})
+            except Exception:
+                return self.reply({'ok': False})
         if self.path == '/api/sponsor/paypal':
             try:
                 open_paypal()

@@ -2203,7 +2203,11 @@ html[data-theme="light-gray"] .sponsor-icon-btn img {
   font-weight: 400;
   line-height: 1.15;
   color: #4ade80;
-  text-shadow: 0 0 10px rgba(74, 222, 128, 0.35);
+  text-shadow: none;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
+  font-smooth: never;
+  text-rendering: optimizeSpeed;
 }
 
 .dot-matrix-clock {
@@ -2214,7 +2218,11 @@ html[data-theme="light-gray"] .sponsor-icon-btn img {
   letter-spacing: 1px;
   font-variant-numeric: tabular-nums;
   color: #4ade80;
-  text-shadow: 0 0 12px rgba(74, 222, 128, 0.45);
+  text-shadow: none;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
+  font-smooth: never;
+  text-rendering: optimizeSpeed;
 }
 
 .dot-matrix-sub {
@@ -2222,6 +2230,10 @@ html[data-theme="light-gray"] .sponsor-icon-btn img {
   line-height: 1.5;
   color: #86efac;
   opacity: 0.9;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: unset;
+  font-smooth: never;
+  text-rendering: optimizeSpeed;
 }
 
 .generation-sub-status {
@@ -2322,20 +2334,23 @@ html[data-theme="light-gray"] .sponsor-icon-btn img {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 0;
+  left: -24px;
   width: 88px;
   border-radius: 3px;
   background: linear-gradient(90deg, transparent 0%, rgba(74, 222, 128, 0.25) 35%, #4ade80 50%, rgba(74, 222, 128, 0.25) 65%, transparent 100%);
   box-shadow: 0 0 10px rgba(74, 222, 128, 0.65);
-  animation: dot-matrix-sweep 2.2s ease-in-out infinite alternate;
+  animation: dot-matrix-sweep 3.2s ease-in-out infinite;
 }
 
 @keyframes dot-matrix-sweep {
   0% {
     left: -24px;
   }
-  100% {
+  50% {
     left: calc(100% - 64px);
+  }
+  100% {
+    left: -24px;
   }
 }
 

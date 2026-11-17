@@ -72,7 +72,7 @@ def notify_error(message):
         subprocess.run(['osascript','-e','display alert "소리숲" message "'+escaped+'" as critical'],check=False)
 
 def window_geometry(screens):
-    width,height=1600,850
+    width,height=1600,980
     if screens:
         screen=screens[0];frame=screen.frame
         available_width=int(getattr(frame,'Width',screen.width))
@@ -80,6 +80,52 @@ def window_geometry(screens):
         width=min(width,max(640,available_width-40))
         height=min(height,max(480,available_height-48))
     return width,height,(min(1100,width),min(720,height))
+
+
+def apply_native_window_theme(theme):
+    theme = theme if theme in ('white', 'light-gray', 'dark-gray') else 'white'
+    if sys.platform == 'darwin':
+        try:
+            from webview.platforms import cocoa
+            from AppKit import NSAppearance, NSColor
+            from PyObjCTools import AppHelper
+            def _update():
+                try:
+                    if theme == 'dark-gray':
+                        r, g, b = 0x21 / 255.0, 0x25 / 255.0, 0x28 / 255.0
+                        app_name = 'NSAppearanceNameDarkAqua'
+                    elif theme == 'light-gray':
+                        r, g, b = 0xF7 / 255.0, 0xF8 / 255.0, 0xF9 / 255.0
+                        app_name = 'NSAppearanceNameAqua'
+                    else:
+                        r, g, b = 1.0, 1.0, 1.0
+                        app_name = 'NSAppearanceNameAqua'
+                    ns_color = NSColor.colorWithSRGBRed_green_blue_alpha_(r, g, b, 1.0)
+                    appearance = NSAppearance.appearanceNamed_(app_name)
+                    for inst in list(cocoa.BrowserView.instances.values()):
+                        win = getattr(inst, 'window', None)
+                        if win is not None:
+                            win.setTitlebarAppearsTransparent_(True)
+                            win.setBackgroundColor_(ns_color)
+                            if appearance is not None:
+                                win.setAppearance_(appearance)
+                except Exception:
+                    pass
+            AppHelper.callAfter(_update)
+        except Exception:
+            pass
+    elif sys.platform == 'win32':
+        try:
+            import ctypes
+            from ctypes import byref, c_int, sizeof
+            is_dark = c_int(1 if theme == 'dark-gray' else 0)
+            colorref = c_int(0x00282521 if theme == 'dark-gray' else (0x00F9F8F7 if theme == 'light-gray' else 0x00FFFFFF))
+            hwnd = ctypes.windll.user32.FindWindowW(None, '소리숲')
+            if hwnd:
+                ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 20, byref(is_dark), sizeof(is_dark))
+                ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 35, byref(colorref), sizeof(colorref))
+        except Exception:
+            pass
 
 
 def configure_webview_platform():
@@ -183,6 +229,14 @@ def run(args,root,data):
             width,height,minimum=window_geometry(webview.screens)
             window=webview.create_window('소리숲',url,width=width,height=height,min_size=minimum,hidden=args.smoke_ui,maximized=False,background_color='#f6f7f3',text_select=True)
             app.EXIT_HOOK=lambda:window.destroy()
+            app.THEME_HOOK=apply_native_window_theme
+            def sync_initial_theme():
+                try:
+                    t = window.evaluate_js("document.documentElement.dataset.theme || 'white'")
+                    apply_native_window_theme(t)
+                except Exception:
+                    pass
+            window.events.loaded += sync_initial_theme
 
             def on_closed():
                 from storage import clean_session_caches
@@ -209,6 +263,7 @@ def run(args,root,data):
         return result
     finally:
         app.EXIT_HOOK=None
+        app.THEME_HOOK=None
         if session.owned:
             installer.shutdown();engine.cancel()
             deadline=time.monotonic()+5
