@@ -503,6 +503,10 @@ body {
   border: 1px solid var(--border-default);
 }
 
+.segmented-switch[hidden] {
+  display: none;
+}
+
 .segmented-switch button {
   display: inline-flex;
   align-items: center;
@@ -3476,4 +3480,1591 @@ html[data-theme="dark-gray"] .results-notice {
 
 html[data-theme="dark-gray"] .api-key-summary-info .ui-icon {
   color: #92d9ac !important;
+}
+
+/* ==========================================================================
+   Song Workshop (노래 다듬기 스튜디오) — Senior-friendly, clear & spacious
+   ========================================================================== */
+[hidden] {
+  display: none !important;
+}
+
+.result-edit-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  color: var(--accent-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.result-workshop-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 6px 13px;
+  border: 1px solid var(--accent-border);
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent-primary);
+  font-size: 15px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.result-workshop-chip:hover {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: var(--accent-text);
+}
+
+.result-workshop-chip .ui-icon,
+.workshop-result-btn .ui-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.workshop-result-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 9px 16px;
+  border: 1px solid var(--accent-primary);
+  border-radius: 6px;
+  background: var(--accent-primary);
+  color: var(--accent-text);
+  font-size: 16px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.workshop-result-btn:hover {
+  background: var(--accent-primary-hover);
+  border-color: var(--accent-primary-hover);
+}
+
+html[data-theme="dark-gray"] .result-edit-badge,
+html[data-theme="dark-gray"] .result-workshop-chip {
+  color: #92d9ac;
+}
+
+html[data-theme="dark-gray"] .result-workshop-chip:hover {
+  color: var(--accent-text);
+}
+
+.song-workshop {
+  max-width: 1540px;
+  margin: 0 auto;
+  padding: 6px 0 36px;
+}
+
+.workshop-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: 18px;
+  padding: 16px 22px;
+  margin-bottom: 22px;
+  border: 1px solid var(--border-default);
+  border-radius: 16px;
+  background: var(--bg-surface);
+}
+
+.workshop-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  min-height: 46px;
+  padding: 10px 16px;
+  border: 1px solid var(--border-default);
+  border-radius: 10px;
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.workshop-back-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-border);
+}
+
+.workshop-heading-group {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-left: 18px;
+  border-left: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+
+.workshop-title-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.workshop-title-row h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 750;
+  line-height: 1.3;
+  letter-spacing: -0.4px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workshop-meta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.workshop-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  color: var(--accent-primary);
+  font-size: 14px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.workshop-badge[hidden] {
+  display: none;
+}
+
+.workshop-source-subtitle {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-secondary);
+}
+
+.workshop-version-wrap {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 14px;
+  border-radius: 10px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+}
+
+.workshop-version-wrap[hidden] {
+  display: none;
+}
+
+.workshop-version-wrap label {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.workshop-version-wrap select {
+  width: auto;
+  min-width: 190px;
+  max-width: 280px;
+  min-height: 40px;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 7px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+}
+
+.workshop-body-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(320px, 3fr);
+  gap: 22px;
+  align-items: start;
+}
+
+.workshop-body-grid.is-instrumental {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.workshop-left-col {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+}
+
+.workshop-right-col {
+  position: static;
+  min-width: 0;
+  width: 100%;
+}
+
+.workshop-lyrics-card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.workshop-lyrics-heading {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.workshop-lyrics-sub {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.workshop-lyrics-card textarea {
+  min-height: 320px;
+  max-height: none;
+  height: auto;
+  field-sizing: content;
+  overflow-y: hidden;
+  resize: none;
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  font-size: 17px;
+  line-height: 1.85;
+}
+
+.workshop-lyrics-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 5px;
+  border-radius: 10px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+}
+
+.workshop-lyrics-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 15.5px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.workshop-lyrics-tab:hover {
+  color: var(--text-primary);
+}
+
+.workshop-lyrics-tab.is-active {
+  background: var(--bg-surface);
+  color: var(--accent-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.workshop-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  color: var(--accent-primary);
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.workshop-lyrics-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.workshop-lyrics-panel[hidden] {
+  display: none;
+}
+
+.workshop-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: 16px;
+  padding: 24px 26px;
+}
+
+.workshop-step-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.workshop-step-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-height: 34px;
+  padding: 5px 13px;
+  border-radius: 999px;
+  background: var(--accent-primary);
+  color: var(--accent-text);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.workshop-step-badge.is-done {
+  background: #2f6f4e;
+}
+
+.workshop-step-head h2 {
+  margin: 0;
+  font-size: 21px;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+.workshop-step-desc {
+  margin: 4px 0 0;
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+.workshop-source-player .audio-player {
+  margin-bottom: 16px;
+}
+
+.workshop-source-player .player-controls {
+  grid-template-columns: 44px 44px minmax(0, 1fr) 44px;
+  gap: 10px;
+}
+
+.workshop-source-player .player-toggle,
+.workshop-source-player .player-restart,
+.workshop-source-player .player-mute {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.workshop-source-player .player-restart > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.workshop-source-player .player-toggle .ui-icon,
+.workshop-source-player .player-restart .ui-icon,
+.workshop-source-player .player-mute .ui-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.player-restart {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--accent-border);
+  border-radius: 50%;
+  background: var(--bg-surface);
+  color: var(--accent-primary);
+  cursor: pointer;
+}
+
+.player-restart:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-primary);
+}
+
+.player-restart:focus-visible {
+  outline: 3px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.workshop-timeline-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.workshop-timeline-labels {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.workshop-timeline-total-wrap {
+  font-variant-numeric: tabular-nums;
+}
+
+.workshop-timeline-center-meta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.workshop-timeline-range-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 11px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  color: var(--accent-primary);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.workshop-timeline-track-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.workshop-time-ruler {
+  position: relative;
+  height: 30px;
+  cursor: pointer;
+  user-select: none;
+  overflow: hidden;
+}
+
+.workshop-timeline-track-group .workshop-time-ruler {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
+}
+
+.workshop-ruler-ticks {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.workshop-ruler-tick {
+  position: absolute;
+  bottom: 0;
+  width: 1px;
+  background: var(--text-muted);
+  transform: translateX(-0.5px);
+}
+
+.workshop-ruler-tick.is-minor {
+  height: 5px;
+  opacity: 0.45;
+}
+
+.workshop-ruler-tick.is-mid {
+  height: 8px;
+  background: var(--text-muted);
+  opacity: 0.75;
+}
+
+.workshop-ruler-tick.is-major {
+  height: 11px;
+  background: var(--text-secondary);
+}
+
+.workshop-ruler-tick.is-first,
+.workshop-ruler-tick.is-last {
+  transform: none;
+}
+
+.workshop-ruler-tick.is-last {
+  margin-left: -1px;
+}
+
+.workshop-ruler-label {
+  position: absolute;
+  bottom: 13px;
+  left: 0;
+  transform: translateX(-50%);
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.workshop-ruler-tick.is-first .workshop-ruler-label {
+  left: 6px;
+  transform: none;
+}
+
+.workshop-ruler-tick.is-last .workshop-ruler-label {
+  left: auto;
+  right: 6px;
+  transform: none;
+}
+
+.workshop-ruler-range {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--accent-soft);
+  opacity: 0.75;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.workshop-ruler-range[hidden] {
+  display: none;
+}
+
+.workshop-ruler-playhead {
+  position: absolute;
+  bottom: 0;
+  height: 12px;
+  width: 2px;
+  margin-left: -1px;
+  background: #d96b43;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.workshop-timeline-bar {
+  position: relative;
+  height: 48px;
+  border-radius: 0 0 10px 10px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+  cursor: pointer;
+  overflow: hidden;
+  user-select: none;
+  touch-action: none;
+}
+
+.workshop-timeline-bar.is-dragging {
+  cursor: grabbing;
+}
+
+.workshop-timeline-bar:focus-visible {
+  outline: 3px solid var(--accent-primary);
+  outline-offset: 3px;
+}
+
+.workshop-timeline-range {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--accent-soft);
+  border-top: 2px solid var(--accent-primary);
+  border-bottom: 2px solid var(--accent-primary);
+  cursor: grab;
+  overflow: hidden;
+}
+
+.workshop-timeline-range:active {
+  cursor: grabbing;
+}
+
+.workshop-range-handle {
+  position: relative;
+  flex: 0 0 14px;
+  height: 100%;
+  background: var(--accent-primary);
+  cursor: ew-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.workshop-range-handle::after {
+  content: "";
+  width: 2px;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--accent-text);
+  opacity: 0.9;
+}
+
+.workshop-range-handle:focus-visible {
+  outline: 2px solid #d96b43;
+  outline-offset: -2px;
+}
+
+.workshop-range-tag {
+  padding: 2px 7px;
+  margin: 0 6px;
+  border-radius: 5px;
+  background: var(--bg-surface);
+  border: 1px solid var(--accent-border);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.workshop-timeline-range.is-narrow .workshop-range-tag {
+  display: none;
+}
+
+.workshop-timeline-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  margin-left: -2px;
+  background: #d96b43;
+  pointer-events: none;
+  z-index: 4;
+}
+
+.workshop-capture-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.workshop-capture-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1 1 200px;
+  min-height: 50px;
+  padding: 10px 16px;
+  border: 1px solid var(--accent-border);
+  border-radius: 10px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.workshop-capture-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-primary);
+}
+
+.workshop-preview-btn.is-playing {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: var(--accent-text);
+}
+
+.workshop-mode-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.workshop-mode-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 18px 20px;
+  min-height: 132px;
+  border: 1px solid var(--border-default);
+  border-radius: 14px;
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.workshop-mode-tab:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-border);
+}
+
+.workshop-mode-tab.is-active {
+  background: var(--accent-soft);
+  border: 2px solid var(--accent-primary);
+}
+
+.workshop-tab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  color: var(--accent-primary);
+}
+
+.workshop-mode-tab strong {
+  float: none;
+  font-size: 18px;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+.workshop-mode-tab small {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.workshop-submode-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.workshop-submode-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 16px 18px;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.workshop-submode-btn:hover {
+  background: var(--bg-hover);
+}
+
+.workshop-submode-btn.is-active {
+  background: var(--accent-soft);
+  border: 2px solid var(--accent-primary);
+}
+
+.workshop-submode-btn strong {
+  float: none;
+  font-size: 17px;
+  color: var(--text-primary);
+}
+
+.workshop-submode-btn small {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.workshop-group-label {
+  display: block;
+  margin: 0 0 10px;
+  font-size: 17px;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.workshop-quick-zones {
+  margin-bottom: 18px;
+}
+
+.workshop-quick-zone-btns,
+.workshop-style-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.workshop-chip-btn {
+  min-height: 46px;
+  padding: 9px 16px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.workshop-chip-btn:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+}
+
+.workshop-range-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.workshop-time-box {
+  padding: 18px;
+  border-radius: 14px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-subtle);
+}
+
+.workshop-time-box-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.workshop-time-box-head label {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.workshop-time-clock {
+  font-size: 24px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-primary);
+}
+
+.workshop-time-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.workshop-step-btn {
+  min-width: 54px;
+  min-height: 46px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.workshop-step-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-border);
+}
+
+.workshop-sec-input-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+  color: var(--text-secondary);
+}
+
+.workshop-sec-input-wrap input {
+  width: 78px;
+  min-height: 46px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.workshop-summary-banner {
+  margin: 16px 0 20px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.workshop-choice-section {
+  margin-bottom: 20px;
+}
+
+.workshop-preset-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.workshop-extend-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.workshop-preset-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 16px 18px;
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.workshop-preset-card:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--accent-border);
+}
+
+.workshop-preset-card.is-active {
+  background: var(--accent-soft);
+  border: 2px solid var(--accent-primary);
+}
+
+.workshop-preset-card:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.workshop-preset-card strong {
+  float: none;
+  font-size: 17px;
+  line-height: 1.4;
+  color: var(--text-primary);
+}
+
+.workshop-preset-card small {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.workshop-extend-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.workshop-extend-custom-row label {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.workshop-voice-row {
+  margin-top: 8px;
+}
+
+.workshop-voice-row label {
+  margin: 0 0 10px;
+  font-size: 17px;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.workshop-voice-row select {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border-color: var(--border-default);
+  font-size: 17px;
+  min-height: 52px;
+}
+
+.workshop-shared-fields {
+  margin-top: 24px;
+  padding-top: 22px;
+  border-top: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.workshop-field-block label {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 650;
+  color: var(--text-primary);
+}
+
+.workshop-field-block input,
+.workshop-field-block textarea {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  font-size: 17px;
+  line-height: 1.75;
+}
+
+.workshop-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.workshop-label-row label {
+  margin: 0;
+}
+
+.workshop-char-count {
+  font-size: 15px;
+  color: var(--text-muted);
+}
+
+.workshop-char-count.over-limit {
+  color: var(--danger-text);
+  font-weight: 650;
+}
+
+.workshop-tip-box {
+  margin-top: 12px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+}
+
+.workshop-tip-box strong {
+  float: none;
+  display: block;
+  margin-bottom: 6px;
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.workshop-tip-box p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+.workshop-tip-box code {
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+}
+
+.workshop-device-note {
+  margin: 4px 0 0;
+  font-size: 15px;
+  color: var(--text-secondary);
+}
+
+.workshop-run-progress {
+  margin-bottom: 16px;
+}
+
+.workshop-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.workshop-progress-status {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  flex: 1;
+  min-width: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px 18px 22px;
+  min-height: 88px;
+  border-radius: 11px;
+  background: #080b09 !important;
+  border: 1px solid #1e3324 !important;
+  color: #4ade80 !important;
+  box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.75);
+}
+
+.workshop-progress-status::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(74, 222, 128, 0.08) 1px, transparent 1px);
+  background-size: 4px 4px;
+  opacity: 0.9;
+}
+
+.workshop-cancel-btn {
+  min-height: 54px;
+  padding: 10px 20px;
+  border: 1px solid var(--danger-text);
+  border-radius: 10px;
+  background: var(--bg-surface);
+  color: var(--danger-text);
+  font-size: 17px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.workshop-cancel-btn:hover:not(:disabled) {
+  background: var(--danger-bg);
+}
+
+.workshop-submit-btn {
+  width: 100%;
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 24px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent-primary);
+  color: var(--accent-text);
+  font-size: 20px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.workshop-submit-btn:hover:not(:disabled) {
+  background: var(--accent-primary-hover);
+}
+
+.workshop-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.workshop-compare-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.workshop-compare-col {
+  padding: 18px;
+  border-radius: 14px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-subtle);
+}
+
+.workshop-compare-col.is-edited {
+  background: var(--accent-soft);
+  border-color: var(--accent-border);
+}
+
+.workshop-compare-head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.workshop-compare-head strong {
+  float: none;
+  font-size: 18px;
+  color: var(--text-primary);
+}
+
+.workshop-compare-tag {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.workshop-compare-tag.is-edited {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: var(--accent-text);
+}
+
+.workshop-compare-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.workshop-compare-actions .download-result {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 9px 15px;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.workshop-continue-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1 1 220px;
+  min-height: 46px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent-primary);
+  color: var(--accent-text);
+  font-size: 16px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.workshop-continue-btn:hover {
+  background: var(--accent-primary-hover);
+}
+
+
+.workshop-edit-history-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.workshop-edit-history-wrap[hidden] {
+  display: none;
+}
+
+.workshop-edit-history-empty {
+  margin: 0;
+  padding: 18px 16px;
+  border-radius: 12px;
+  background: var(--bg-subtle);
+  border: 1px dashed var(--border-default);
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.workshop-edit-history-empty[hidden] {
+  display: none;
+}
+
+.workshop-edit-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.workshop-edit-history-list[hidden] {
+  display: none;
+}
+
+.edit-record-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+
+.workshop-history-load-btn {
+  min-height: 38px;
+  padding: 6px 12px;
+  border: 1px solid var(--accent-border);
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: var(--accent-primary);
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.workshop-history-load-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-primary);
+}
+
+.saved-lyrics-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 18px 0 10px;
+}
+
+.saved-lyrics-header h3 {
+  margin: 0 !important;
+}
+
+.saved-lyrics-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 8px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+}
+
+.saved-lyrics-tab {
+  min-height: 34px;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.saved-lyrics-tab:hover {
+  color: var(--text-primary);
+}
+
+.saved-lyrics-tab.is-active {
+  background: var(--bg-surface);
+  color: var(--accent-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.saved-lyrics-panel[hidden] {
+  display: none;
+}
+
+.workshop-compare-edit-detail {
+  margin-top: 14px;
+}
+
+.workshop-compare-edit-detail[hidden] {
+  display: none;
+}
+
+.workshop-compare-detail-title {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.saved-edit-records {
+  margin: 18px 0;
+}
+
+.saved-edit-records h3 {
+  margin: 0 0 10px;
+  font-size: 17px;
+  color: var(--text-primary);
+}
+
+.edit-records-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.edit-record-item,
+.workshop-edit-history-item {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.saved-edit-records .edit-record-item {
+  background: var(--bg-subtle);
+}
+
+.edit-record-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.edit-record-step {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.edit-record-range {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-border);
+  color: var(--accent-primary);
+  font-size: 13.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.edit-record-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 6px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.saved-edit-records .edit-record-badge {
+  background: var(--bg-surface);
+}
+
+.edit-record-lyrics {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--text-primary);
+}
+
+html[data-theme="dark-gray"] .workshop-badge,
+html[data-theme="dark-gray"] .workshop-tab-icon,
+html[data-theme="dark-gray"] .workshop-time-clock,
+html[data-theme="dark-gray"] .workshop-timeline-range-label,
+html[data-theme="dark-gray"] .edit-record-range,
+html[data-theme="dark-gray"] .player-restart,
+html[data-theme="dark-gray"] .workshop-lyrics-tab.is-active,
+html[data-theme="dark-gray"] .workshop-tab-count,
+html[data-theme="dark-gray"] .workshop-history-load-btn,
+html[data-theme="dark-gray"] .saved-lyrics-tab.is-active {
+  color: #92d9ac;
+}
+
+@media (max-width: 1080px) {
+  .workshop-body-grid {
+    grid-template-columns: 1fr;
+  }
+  .workshop-right-col {
+    position: static;
+  }
+  .workshop-lyrics-card textarea {
+    min-height: 260px;
+    max-height: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .workshop-topbar {
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+  .workshop-heading-group {
+    order: -1;
+    flex-basis: 100%;
+    padding-left: 0;
+    border-left: 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+  .workshop-back-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+  .workshop-version-wrap {
+    flex: 1 1 240px;
+    justify-content: space-between;
+  }
+  .workshop-version-wrap select {
+    max-width: none;
+    flex: 1;
+  }
+  .workshop-mode-tabs,
+  .workshop-preset-cards,
+  .workshop-range-grid,
+  .workshop-compare-grid {
+    grid-template-columns: 1fr;
+  }
+  .workshop-extend-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .workshop-submode-switch {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .workshop-card {
+    padding: 18px;
+  }
+  .workshop-extend-grid {
+    grid-template-columns: 1fr;
+  }
+  .workshop-capture-btn {
+    flex-basis: 100%;
+  }
+  .workshop-ruler-label {
+    font-size: 11px;
+  }
 }

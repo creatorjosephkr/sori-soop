@@ -200,7 +200,202 @@ def history():
             continue
     return sorted(result,key=lambda j:j['createdAt'],reverse=True)
 
-def start(settings, prompt, available=None, lyrics='', language='ko', title='', negative_prompt='', reference_audio_id=None, reference_audio_ids=None):
+def _format_mmss(seconds):
+    total = max(0, int(round(float(seconds))))
+    return f'{total // 60:02d}:{total % 60:02d}'
+
+
+def _prior_edit_history(source_job):
+    """Return accumulated workshop edit records carried over from source_job."""
+    if not isinstance(source_job, dict):
+        return []
+    raw = source_job.get('editHistory')
+    if isinstance(raw, list) and raw:
+        return [dict(item) for item in raw if isinstance(item, dict)]
+    prev_spec = source_job.get('editSpec')
+    if isinstance(prev_spec, dict) and prev_spec.get('mode'):
+        start = float(prev_spec.get('repaintStart', 0.0) or 0.0)
+        end = float(prev_spec.get('repaintEnd', prev_spec.get('targetDuration', prev_spec.get('sourceDuration', 0.0))) or 0.0)
+        return [{
+            'jobId': source_job.get('id', ''),
+            'createdAt': source_job.get('createdAt'),
+            'mode': prev_spec.get('mode'),
+            'subMode': prev_spec.get('subMode'),
+            'summaryLabel': prev_spec.get('summaryLabel', ''),
+            'repaintStart': start,
+            'repaintEnd': end,
+            'startClock': prev_spec.get('startClock') or _format_mmss(start),
+            'endClock': prev_spec.get('endClock') or _format_mmss(end),
+            'editedLyrics': str(prev_spec.get('editedLyrics') or source_job.get('lyrics') or '').strip(),
+            'editedPrompt': str(source_job.get('prompt') or '').strip(),
+        }]
+    return []
+
+
+def validate_edit_spec(edit_spec):
+    """Validate and normalize a song workshop edit request against its source job."""
+    if not isinstance(edit_spec, dict):
+        raise ValueError('노래 다듬기 요청 형식이 올바르지 않습니다.')
+    edit_mode = edit_spec.get('mode')
+    if edit_mode not in ('repaint', 'cover', 'retake'):
+        raise ValueError('지원하지 않는 노래 다듬기 방식입니다.')
+    source_id = edit_spec.get('sourceJobId')
+    if not isinstance(source_id, str) or not re.fullmatch(r'[a-f0-9]{32}', source_id):
+        raise ValueError('원본 노래 ID가 올바르지 않습니다.')
+    record = DATA / 'jobs' / f'{source_id}.json'
+    if not record.is_file():
+        raise FileNotFoundError('원본 노래 기록을 찾을 수 없습니다.')
+    try:
+        source_job = json.loads(record.read_text(encoding='utf-8'))
+    except (OSError, ValueError) as error:
+        raise ValueError('원본 노래 정보를 읽을 수 없습니다.') from error
+    if source_job.get('status') != 'completed':
+        raise ValueError('생성이 완료된 노래만 다듬을 수 있습니다.')
+    source_settings = source_job.get('settings') if isinstance(source_job.get('settings'), dict) else {}
+    if source_settings.get('mode') != 'song':
+        raise ValueError('노래 다듬기는 노래 모드 결과에만 사용할 수 있습니다.')
+    source_wav = DATA / 'audio' / f'{source_id}.wav'
+    if not source_wav.is_file():
+        raise FileNotFoundError('원본 노래 오디오 파일을 찾을 수 없습니다.')
+    try:
+        with wave.open(str(source_wav)) as w:
+            rate = w.getframerate()
+            if rate <= 0:
+                raise ValueError('샘플레이트 오류')
+            source_duration = w.getnframes() / rate
+    except Exception as error:
+        raise ValueError('원본 노래 오디오 길이를 확인할 수 없습니다.') from error
+    if source_duration < 2.0:
+        raise ValueError('원본 노래가 너무 짧아 다듬기를 진행할 수 없습니다.')
+
+    def _finite_number(value, name):
+        if type(value) is bool or not isinstance(value, (int, float)):
+            raise ValueError(f'{name} 값이 올바르지 않습니다.')
+        val = float(value)
+        if val != val or abs(val) == float('inf'):
+            raise ValueError(f'{name} 값이 올바르지 않습니다.')
+        return val
+
+    comp = source_job.get('composition') if isinstance(source_job.get('composition'), dict) else {}
+    comp_meta = comp.get('metadata') if isinstance(comp.get('metadata'), dict) else {}
+    source_meta = {k: comp_meta[k] for k in ('bpm', 'keyscale', 'timesignature', 'language') if comp_meta.get(k) not in (None, '')}
+    root_id = source_job.get('rootJobId') or source_id
+    root_job = source_job
+    if root_id != source_id:
+        root_record = DATA / 'jobs' / f'{root_id}.json'
+        if root_record.is_file():
+            try:
+                root_job = json.loads(root_record.read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                root_job = source_job
+    source_edit = source_job.get('editSpec') if isinstance(source_job.get('editSpec'), dict) else {}
+    root_edit = root_job.get('editSpec') if isinstance(root_job.get('editSpec'), dict) else {}
+    original_lyrics = (
+        root_edit.get('originalLyrics')
+        or root_job.get('lyrics')
+        or source_edit.get('originalLyrics')
+        or source_job.get('lyrics')
+        or ''
+    )
+    original_lyrics = original_lyrics.strip() if isinstance(original_lyrics, str) else ''
+    normalized = {
+        'mode': edit_mode,
+        'sourceJobId': source_id,
+        'rootJobId': root_id,
+        'sourceTitle': str(source_job.get('title') or source_job.get('prompt') or '제목 없는 노래').strip()[:100],
+        'sourceDuration': round(source_duration, 2),
+        'sourceAudioPath': str(source_wav),
+        'sourceMetadata': source_meta,
+    }
+    if original_lyrics:
+        normalized['originalLyrics'] = original_lyrics
+
+    if edit_mode == 'repaint':
+        sub_mode = edit_spec.get('subMode', 'section')
+        if sub_mode not in ('section', 'extend'):
+            raise ValueError('구간 수정 방식을 확인하세요.')
+        repaint_mode = edit_spec.get('repaintMode', 'balanced')
+        if repaint_mode not in ('conservative', 'balanced', 'aggressive'):
+            raise ValueError('수정 강도 모드를 확인하세요.')
+        repaint_strength = _finite_number(edit_spec.get('repaintStrength', 0.5), '수정 강도')
+        if not 0.0 <= repaint_strength <= 1.0:
+            raise ValueError('수정 강도는 0.0~1.0 범위여야 합니다.')
+        normalized['subMode'] = sub_mode
+        normalized['repaintMode'] = repaint_mode
+        normalized['repaintStrength'] = round(repaint_strength, 2)
+        if sub_mode == 'extend':
+            extend_seconds = _finite_number(edit_spec.get('extendSeconds', 20), '연장 길이')
+            if not 5.0 <= extend_seconds <= 120.0:
+                raise ValueError('연장 길이는 5~120초 범위로 선택하세요.')
+            if source_duration + extend_seconds > 600.0:
+                raise ValueError('노래 전체 길이는 최대 600초(10분)를 넘을 수 없습니다.')
+            default_overlap = min(5.0, max(1.0, round(source_duration * 0.2, 1)))
+            overlap_seconds = _finite_number(edit_spec.get('overlapSeconds', default_overlap), '연결 겹침 길이')
+            if not 1.0 <= overlap_seconds <= min(15.0, source_duration):
+                raise ValueError('연결 겹침 길이가 올바르지 않습니다.')
+            repaint_start = round(max(0.0, source_duration - overlap_seconds), 2)
+            repaint_end = round(source_duration + extend_seconds, 2)
+            normalized['extendSeconds'] = round(extend_seconds, 1)
+            normalized['overlapSeconds'] = round(overlap_seconds, 1)
+            normalized['repaintStart'] = repaint_start
+            normalized['repaintEnd'] = repaint_end
+            normalized['startClock'] = _format_mmss(repaint_start)
+            normalized['endClock'] = _format_mmss(repaint_end)
+            normalized['targetDuration'] = repaint_end
+            normalized['summaryLabel'] = f'뒷부분 +{int(round(extend_seconds))}초 연장'
+        else:
+            repaint_start = _finite_number(edit_spec.get('repaintStart', 0.0), '시작 시간')
+            repaint_end = _finite_number(edit_spec.get('repaintEnd', source_duration), '끝 시간')
+            if repaint_start < 0.0 or repaint_end > source_duration + 0.5 or repaint_start >= repaint_end:
+                raise ValueError('수정할 시작·끝 시간이 노래 길이 범위를 벗어났습니다.')
+            repaint_start = round(repaint_start, 2)
+            repaint_end = min(round(repaint_end, 2), round(source_duration, 2))
+            if repaint_end - repaint_start < 2.0:
+                raise ValueError('수정할 구간은 최소 2초 이상 선택해 주세요.')
+            normalized['repaintStart'] = repaint_start
+            normalized['repaintEnd'] = repaint_end
+            normalized['startClock'] = _format_mmss(repaint_start)
+            normalized['endClock'] = _format_mmss(repaint_end)
+            normalized['targetDuration'] = round(source_duration, 2)
+            normalized['summaryLabel'] = f'구간 수정 ({_format_mmss(repaint_start)}~{_format_mmss(repaint_end)})'
+    elif edit_mode == 'cover':
+        cover_strength = _finite_number(edit_spec.get('coverStrength', 0.75), '원곡 유지 강도')
+        if not 0.1 <= cover_strength <= 1.0:
+            raise ValueError('원곡 유지 강도는 0.1~1.0 범위여야 합니다.')
+        cover_noise_strength = _finite_number(edit_spec.get('coverNoiseStrength', 0.0), '사운드 보존 강도')
+        if not 0.0 <= cover_noise_strength <= 0.5:
+            raise ValueError('사운드 보존 강도는 0.0~0.5 범위여야 합니다.')
+        normalized['coverStrength'] = round(cover_strength, 2)
+        normalized['coverNoiseStrength'] = round(cover_noise_strength, 2)
+        normalized['repaintStart'] = 0.0
+        normalized['repaintEnd'] = round(source_duration, 2)
+        normalized['startClock'] = '00:00'
+        normalized['endClock'] = _format_mmss(source_duration)
+        normalized['targetDuration'] = round(source_duration, 2)
+        normalized['summaryLabel'] = f'편곡·스타일 변경 ({int(round(cover_strength * 100))}%)'
+    else:
+        retake_variance = _finite_number(edit_spec.get('retakeVariance', 0.30), '변주 폭')
+        if not 0.05 <= retake_variance <= 0.80:
+            raise ValueError('변주 폭은 5~80% 범위여야 합니다.')
+        normalized['retakeVariance'] = round(retake_variance, 2)
+        normalized['repaintStart'] = 0.0
+        normalized['repaintEnd'] = round(source_duration, 2)
+        normalized['startClock'] = '00:00'
+        normalized['endClock'] = _format_mmss(source_duration)
+        normalized['targetDuration'] = round(source_duration, 2)
+        normalized['summaryLabel'] = f'다른 테이크 ({int(round(retake_variance * 100))}% 변주)'
+        source_codes = comp.get('audioCodes')
+        if isinstance(source_codes, str) and source_codes.strip():
+            normalized['sourceAudioCodes'] = source_codes
+        prev_edit = source_job.get('editSpec') if isinstance(source_job.get('editSpec'), dict) else {}
+        base_seed = prev_edit.get('sourceSeed', source_job.get('seed'))
+        if isinstance(base_seed, int) and not isinstance(base_seed, bool) and base_seed >= 0:
+            normalized['sourceSeed'] = base_seed
+
+    return normalized, source_job
+
+
+def start(settings, prompt, available=None, lyrics='', language='ko', title='', negative_prompt='', reference_audio_id=None, reference_audio_ids=None, edit_spec=None):
     global ACTIVE, CURRENT
     settings={**settings, 'peakDb':validate_peak_db(settings.get('peakDb', -8))}
     if not isinstance(prompt,str) or not 1 <= len(prompt.strip()) <= 2000:
@@ -231,11 +426,17 @@ def start(settings, prompt, available=None, lyrics='', language='ko', title='', 
         raise ValueError('고품질 배경음악(Medium) 모델을 먼저 준비해 주세요. 음악 모델 설정 아래의 설치 버튼을 누르세요.')
     if settings['model'] == 'small-sfx' and not sa3_model_ready(settings['backend'], 'small-sfx'):
         raise ValueError('효과음(Small-SFX) 모델을 먼저 준비해 주세요. 음악 모델 설정 아래의 설치 버튼을 누르세요.')
+    normalized_edit = None
+    edit_source_job = None
+    if edit_spec is not None:
+        if not song or settings['model'] != 'ace-step':
+            raise ValueError('노래 다듬기는 ACE-Step 노래 모드에서만 사용할 수 있습니다.')
+        normalized_edit, edit_source_job = validate_edit_spec(edit_spec)
     if song:
         if settings.get('songQuality','light') not in song_runtime.PLANNERS:raise ValueError('노래 품질 모델을 확인하세요.')
         import song_expert
         settings['songExpert']=song_expert.normalize(settings.get('songExpert'))
-        if settings.get('songQuality')=='quality':
+        if not normalized_edit and settings.get('songQuality')=='quality':
             if not planner_ready('quality'):raise ValueError('품질 우선 모델을 먼저 준비해 주세요. 노래 품질 설정 아래의 준비 버튼을 누르세요.')
             minimum=4 if settings['backend']=='apple' else 8
             if available is not None and available<minimum:raise ValueError(f'품질 모델을 위해 가용 메모리 {minimum}GB 이상을 확보하거나 가벼운 모델을 선택해 주세요.')
@@ -284,7 +485,31 @@ def start(settings, prompt, available=None, lyrics='', language='ko', title='', 
         if negative_prompt.strip():
             job['negativePrompt']=negative_prompt.strip()
         if song:
-            job.update(lyrics=lyrics.strip(), language=language, plannerRevision=(ROOT/'song-planner-version.txt').read_text(encoding='utf-8').strip())
+            submitted_lyrics = '' if instrumental else lyrics.strip()
+            saved_lyrics = submitted_lyrics
+            if normalized_edit and not instrumental and normalized_edit.get('originalLyrics'):
+                saved_lyrics = normalized_edit['originalLyrics']
+            job.update(lyrics=saved_lyrics, language=language, plannerRevision=(ROOT/'song-planner-version.txt').read_text(encoding='utf-8').strip())
+        if normalized_edit:
+            submitted_lyrics = '' if instrumental else lyrics.strip()
+            normalized_edit['editedLyrics'] = submitted_lyrics
+            job['editSpec'] = normalized_edit
+            job['parentJobId'] = normalized_edit['sourceJobId']
+            job['rootJobId'] = normalized_edit['rootJobId']
+            entry = {
+                'jobId': ident,
+                'createdAt': job['createdAt'],
+                'mode': normalized_edit['mode'],
+                'subMode': normalized_edit.get('subMode'),
+                'summaryLabel': normalized_edit.get('summaryLabel', ''),
+                'repaintStart': normalized_edit.get('repaintStart', 0.0),
+                'repaintEnd': normalized_edit.get('repaintEnd', normalized_edit.get('targetDuration', 0.0)),
+                'startClock': normalized_edit.get('startClock', '00:00'),
+                'endClock': normalized_edit.get('endClock', '00:00'),
+                'editedLyrics': submitted_lyrics,
+                'editedPrompt': prompt.strip(),
+            }
+            job['editHistory'] = _prior_edit_history(edit_source_job) + [entry]
         if reference_audio_metas and reference_audio_paths:
             job.update(
                 referenceAudioId=reference_audio_metas[0]['id'],
@@ -400,7 +625,9 @@ def run(job):
             if not song and script.name in ('sa3_mlx.py', 'sa3_tflite.py'):
                 args=[str(python),'-u',str(ROOT/'runners'/'bgm.py'),'--script',str(script),'--peak-db',str(job['settings']['peakDb']),*args[3:]]
         with stream:
-            for phase in (('plan','render') if song and platform.system()=='Windows' else (None,)):
+            is_workshop_edit = bool(song and job.get('editSpec'))
+            phases = ('plan', 'render') if song and not is_workshop_edit and platform.system() == 'Windows' else (None,)
+            for phase in phases:
                 with GUARD:
                     if job.get('cancelRequested'):break
                     command=args+['--phase',phase] if phase else args
@@ -425,7 +652,13 @@ def run(job):
         else:
             with wave.open(str(out)) as w:
                 duration=w.getnframes()/w.getframerate()
-                if song_duration.automatic(job['settings']):
+                if job.get('editSpec'):
+                    target_dur = job['editSpec'].get('targetDuration', duration)
+                    if not 5 <= duration <= 600:
+                        raise ValueError('다듬은 노래 길이가 지원 범위(5~600초)를 벗어났습니다.')
+                    if abs(duration - target_dur) > 3.0:
+                        raise ValueError('다듬은 노래 길이가 예상 길이와 다릅니다.')
+                elif song_duration.automatic(job['settings']):
                     if not 10<=duration<=600:raise ValueError('자동으로 생성한 노래 길이가 지원 범위를 벗어났습니다.')
                 elif abs(duration-job['settings']['seconds'])>1:raise ValueError('결과 길이가 요청과 다릅니다.')
             job['outputPeakDb']=wav_peak_db(out)

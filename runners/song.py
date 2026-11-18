@@ -105,7 +105,7 @@ def validate_plan_controls(metadata):
         input_check_path.write_text(json.dumps({'ok':False,'error':str(error)},ensure_ascii=False),encoding='utf-8')
         raise
 
-def validate_planned_caption(metadata, duration):
+def validate_planned_caption(metadata, duration, instruction=None):
     # Reuse pinned upstream formatters; the metadata is exactly what batch_prep builds.
     from transformers import AutoTokenizer
     from acestep.core.generation.handler.prompt_utils import PromptMixin
@@ -114,11 +114,69 @@ def validate_planned_caption(metadata, duration):
     formatter=InputFormatter()
     metas=formatter._build_metadata_dict(metadata.get('bpm'),metadata.get('keyscale',''),str(metadata.get('timesignature','')),duration)
     pure_caption=formatter.extract_caption_from_sft_format(caption)
-    text,_=formatter.build_dit_inputs('text2music',None,pure_caption,lyrics,metas,job['language'])
+    text,_=formatter.build_dit_inputs('text2music',instruction,pure_caption,lyrics,metas,job['language'])
     tokenizer=AutoTokenizer.from_pretrained(str(REPO/'checkpoints/Qwen3-Embedding-0.6B'),local_files_only=True)
     return validate_caption(tokenizer,text)
 
-if a.phase!='render':
+edit_spec=job.get('editSpec')
+if edit_spec:
+    from acestep.constants import TASK_INSTRUCTIONS
+    edit_mode=edit_spec['mode']
+    if not instrumental and isinstance(edit_spec.get('editedLyrics'), str) and edit_spec['editedLyrics'].strip():
+        lyrics = edit_spec['editedLyrics']
+    stage('원본 노래 정보와 가사 입력을 확인하고 있습니다')
+    from transformers import AutoTokenizer
+    tokenizer=AutoTokenizer.from_pretrained(str(REPO/'checkpoints/Qwen3-Embedding-0.6B'),local_files_only=True)
+    from acestep.core.generation.handler.prompt_utils import PromptMixin
+    validate_caption(tokenizer,PromptMixin().extract_caption_from_sft_format(caption),formatted=False)
+    token_count=check_lyric_tokens(tokenizer,lyrics,job['language'])
+    print(f'전체 가사 확인: {token_count}/2048 tokens',flush=True)
+    del tokenizer
+    metadata=dict(edit_spec.get('sourceMetadata') or {})
+    if requested_bpm is not None:
+        metadata['bpm']=requested_bpm
+    if not instrumental and job['language']!='unknown':
+        metadata['language']=job['language']
+    validate_plan_controls(metadata)
+    duration=float(edit_spec['targetDuration'])
+    source_wav=Path(edit_spec.get('sourceAudioPath') or '')
+    if not source_wav.is_file():
+        data_root=Path(os.environ.get('LOCAL_MUSIC_DATA',str(Path.home()/'.local-music-studio')))
+        source_wav=data_root/'audio'/f"{edit_spec['sourceJobId']}.wav"
+    if not source_wav.is_file():
+        message='원본 노래 오디오 파일을 찾을 수 없습니다.'
+        input_check_path.write_text(json.dumps({'ok':False,'error':message},ensure_ascii=False),encoding='utf-8')
+        raise RuntimeError(message)
+    if edit_mode=='repaint':
+        task_type='repaint'
+        task_instruction=TASK_INSTRUCTIONS['repaint']
+        chunk_mask_mode='explicit'
+        src_audio_path=str(source_wav)
+        plan={'audio_codes':''}
+        main_seed=int(job['seed'])
+    elif edit_mode=='cover':
+        task_type='cover'
+        task_instruction=TASK_INSTRUCTIONS['cover']
+        chunk_mask_mode='auto'
+        src_audio_path=str(source_wav)
+        plan={'audio_codes':''}
+        main_seed=int(job['seed'])
+    else:
+        source_codes=(edit_spec.get('sourceAudioCodes') or '').strip()
+        task_instruction=TASK_INSTRUCTIONS['cover']
+        chunk_mask_mode='auto'
+        if source_codes:
+            task_type='text2music'
+            src_audio_path=None
+            plan={'audio_codes':source_codes}
+        else:
+            task_type='cover'
+            src_audio_path=str(source_wav)
+            plan={'audio_codes':''}
+        main_seed=int(edit_spec.get('sourceSeed',job['seed']))
+    validate_planned_caption(metadata,duration,instruction=task_instruction)
+    plan_path.write_text(json.dumps({'metadata':metadata,'audioCodes':plan['audio_codes'],'plannedSeconds':duration,'durationMode':'manual','lyricTokens':token_count,'lyricLines':len([line for line in lyrics.splitlines() if line.strip()]),'editMode':edit_mode,'requestedBpm':requested_bpm,'requestedLanguage':job['language']},ensure_ascii=False), encoding='utf-8')
+elif a.phase!='render':
     stage('연주곡 구성을 준비하고 있습니다' if instrumental else ('가사에 맞는 곡 구성과 길이를 정하고 있습니다' if automatic(settings) else '가사에 맞는 곡 구성을 준비하고 있습니다'))
     from transformers import AutoTokenizer
     tokenizer=AutoTokenizer.from_pretrained(str(REPO/'checkpoints/Qwen3-Embedding-0.6B'),local_files_only=True)
@@ -244,17 +302,58 @@ message,ok=handler.initialize_service(project_root=str(REPO),config_path='aceste
     compile_model=False,quantization=None,use_flash_attention=False,use_mlx_dit=False)
 if not ok:
     raise RuntimeError(message)
-stage('가사 없는 연주곡을 생성하고 있습니다' if instrumental else '가사와 음악 설명으로 노래를 생성하고 있습니다')
+if edit_spec:
+    if edit_spec['mode'] == 'repaint':
+        stage('노래 뒷부분을 이어 만들고 있습니다' if edit_spec.get('subMode') == 'extend' else '선택한 구간을 다시 만들고 있습니다')
+    elif edit_spec['mode'] == 'cover':
+        stage('새로운 편곡과 스타일을 입히고 있습니다')
+    else:
+        stage('새로운 느낌의 테이크를 만들고 있습니다')
+else:
+    stage('가사 없는 연주곡을 생성하고 있습니다' if instrumental else '가사와 음악 설명으로 노래를 생성하고 있습니다')
 reference_audio=reference_audios[0] if reference_audios else None
-params=GenerationParams(caption=caption,lyrics=lyrics,instrumental=instrumental,
-    vocal_language='unknown' if instrumental else (job['language'] if job['language']!='unknown' else metadata.get('language','unknown')),duration=duration,seed=job['seed'],
+params_kwargs = dict(
+    caption=caption,
+    lyrics=lyrics,
+    instrumental=instrumental,
+    vocal_language='unknown' if instrumental else (job['language'] if job['language']!='unknown' else metadata.get('language','unknown')),
+    duration=duration,
+    seed=main_seed if edit_spec else job['seed'],
     reference_audio=reference_audio,
-    audio_codes=plan['audio_codes'],bpm=metadata.get('bpm'),keyscale=metadata.get('keyscale',''),
-    timesignature=str(metadata.get('timesignature','')),lm_negative_prompt=negative_prompt,
+    audio_codes=plan['audio_codes'],
+    bpm=metadata.get('bpm'),
+    keyscale=metadata.get('keyscale',''),
+    timesignature=str(metadata.get('timesignature','')),
+    lm_negative_prompt=negative_prompt,
     inference_steps=expert['inferenceSteps'],shift=expert['shift'],infer_method=expert['inferMethod'],
-    sampler_mode=expert['sampler'],dcw_enabled=expert['dcw'],thinking=False,use_cot_metas=False,use_cot_caption=False,
-    use_cot_language=False,enable_normalization=False)
-config=GenerationConfig(batch_size=1,use_random_seed=False,seeds=[job['seed']],audio_format='wav')
+    sampler_mode=expert['sampler'],
+    dcw_enabled=expert['dcw'],
+    thinking=False,
+    use_cot_metas=False,
+    use_cot_caption=False,
+    use_cot_language=False,
+    enable_normalization=False,
+)
+if edit_spec:
+    params_kwargs['task_type'] = task_type
+    params_kwargs['instruction'] = task_instruction
+    params_kwargs['chunk_mask_mode'] = chunk_mask_mode
+    params_kwargs['src_audio'] = src_audio_path
+    if edit_spec['mode'] == 'repaint':
+        params_kwargs['repainting_start'] = edit_spec['repaintStart']
+        params_kwargs['repainting_end'] = edit_spec['repaintEnd']
+        params_kwargs['repaint_mode'] = edit_spec['repaintMode']
+        params_kwargs['repaint_strength'] = edit_spec['repaintStrength']
+    elif edit_spec['mode'] == 'cover':
+        params_kwargs['audio_cover_strength'] = edit_spec['coverStrength']
+        params_kwargs['cover_noise_strength'] = edit_spec.get('coverNoiseStrength', 0.0)
+    elif edit_spec['mode'] == 'retake':
+        params_kwargs['retake_seed'] = job['seed']
+        params_kwargs['retake_variance'] = edit_spec['retakeVariance']
+        if task_type == 'cover':
+            params_kwargs['audio_cover_strength'] = 1.0
+params=GenerationParams(**params_kwargs)
+config=GenerationConfig(batch_size=1,use_random_seed=False,seeds=[main_seed if edit_spec else job['seed']],audio_format='wav')
 output=Path(a.out)
 result=generate_music(handler,None,params,config,save_dir=None)
 if not result.success or not result.audios:

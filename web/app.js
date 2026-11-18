@@ -258,6 +258,39 @@ $('pagination-buttons').addEventListener('click',event=>{
 function musicTime(value){const seconds=Math.max(0,Math.floor(Number(value)||0));return String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');}
 function formatDuration(value){const s=Math.max(0,Math.floor(Number(value)||0));return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} (${s}초)`;}
 function durationText(job){if(Number.isFinite(job.durationSeconds))return musicTime(job.durationSeconds);return job.settings.durationMode==='auto'?'자동 · 가사 기준':musicTime(job.settings.seconds);}
+function originalLyricsForJob(job){
+    if(!job)return '';
+    if(job.editSpec?.originalLyrics)return job.editSpec.originalLyrics;
+    if(job.rootJobId&&job.rootJobId!==job.id){
+        const root=jobHistory.find(item=>item.id===job.rootJobId);
+        if(root?.lyrics)return root.editSpec?.originalLyrics||root.lyrics;
+    }
+    return job.lyrics||'';
+}
+function editRecordsForJob(job){
+    if(!job)return [];
+    if(Array.isArray(job.editHistory)&&job.editHistory.length){
+        return job.editHistory.filter(item=>item&&typeof item==='object');
+    }
+    if(job.editSpec?.mode){
+        const spec=job.editSpec;
+        const start=Number.isFinite(Number(spec.repaintStart))?Number(spec.repaintStart):0;
+        const end=Number.isFinite(Number(spec.repaintEnd))?Number(spec.repaintEnd):(Number.isFinite(Number(spec.targetDuration))?Number(spec.targetDuration):(Number(spec.sourceDuration)||0));
+        return [{
+            jobId:job.id,
+            mode:spec.mode,
+            subMode:spec.subMode,
+            summaryLabel:spec.summaryLabel||'',
+            repaintStart:start,
+            repaintEnd:end,
+            startClock:spec.startClock||musicTime(start),
+            endClock:spec.endClock||musicTime(end),
+            editedLyrics:(spec.editedLyrics??job.lyrics??'').trim(),
+            editedPrompt:(job.prompt||'').trim()
+        }];
+    }
+    return [];
+}
 function resultMarkup(job){
     const settings=job.settings;
     const pending=['queued','running'].includes(job.status);
@@ -277,8 +310,30 @@ function resultMarkup(job){
     if(Number.isFinite(job.elapsedSeconds))info.push(['처리 시간',formatDuration(job.elapsedSeconds)]);
     if(job.processPeakGB)info.push(['프로세스 최고 메모리',job.processPeakGB+'GB']);
     if(job.enginePeakGB)info.push(['엔진 최고 메모리',job.enginePeakGB+'GB']);
+    if(job.editSpec?.summaryLabel)info.push(['다듬기 작업',job.editSpec.summaryLabel]);
+    const canWorkshop=job.status==='completed'&&settings.mode==='song'&&Boolean(job.audioUrl);
+    const editBadge=job.editSpec?.summaryLabel?`<span class="result-edit-badge">${escapeHTML(job.editSpec.summaryLabel)}</span>`:'';
+    const displayLyrics=originalLyricsForJob(job);
+    const editRecords=editRecordsForJob(job);
+    const editRecordsListHTML=editRecords.map((rec,idx)=>{
+        const startClock=rec.startClock||musicTime(rec.repaintStart||0);
+        const endClock=rec.endClock||musicTime(rec.repaintEnd||0);
+        const rangeText=`시작 ${startClock} ~ 끝 ${endClock}`;
+        const tagText=rec.summaryLabel||'다듬기 수정';
+        const contentText=String(rec.editedLyrics||'').trim();
+        const sameAsOriginal=Boolean(contentText&&displayLyrics&&contentText===displayLyrics.trim());
+        const bodyText=contentText?(sameAsOriginal?'원본 가사와 동일 (가사 변경 없음)'+(rec.editedPrompt?`\n스타일: ${rec.editedPrompt}`:''):contentText):(rec.editedPrompt?`스타일 변경: ${rec.editedPrompt}`:'가사 변경 없음');
+        return `<article class="edit-record-item"><div class="edit-record-head"><span class="edit-record-step">${editRecords.length>1?`${idx+1}차 수정`:'수정 기록'}</span><span class="edit-record-range">${escapeHTML(rangeText)}</span><span class="edit-record-badge">${escapeHTML(tagText)}</span></div><pre class="edit-record-lyrics">${escapeHTML(bodyText)}</pre></article>`;
+    }).join('');
+    let lyricsSectionMarkup='';
+    if(editRecords.length){
+        const hasOrig=Boolean(displayLyrics);
+        lyricsSectionMarkup=`<section class="saved-lyrics saved-lyrics-tabbed"><div class="saved-lyrics-header"><h3>가사${language?' · '+escapeHTML(language):''}</h3><div class="saved-lyrics-tabs" role="tablist" aria-label="가사 및 수정 내역 보기">${hasOrig?`<button type="button" class="saved-lyrics-tab is-active" role="tab" aria-selected="true" data-result-lyrics-tab="orig">원본 가사</button>`:''}<button type="button" class="saved-lyrics-tab ${hasOrig?'':'is-active'}" role="tab" aria-selected="${hasOrig?'false':'true'}" data-result-lyrics-tab="history">수정·보완 내역 (${editRecords.length})</button></div></div>${hasOrig?`<div class="saved-lyrics-panel" role="tabpanel" data-result-lyrics-panel="orig"><pre>${escapeHTML(displayLyrics)}</pre></div>`:''}<div class="saved-lyrics-panel" role="tabpanel" data-result-lyrics-panel="history" ${hasOrig?'hidden':''}><div class="edit-records-list">${editRecordsListHTML}</div></div></section>`;
+    }else if(displayLyrics){
+        lyricsSectionMarkup=`<section class="saved-lyrics"><h3>가사${language?' · '+escapeHTML(language):''}</h3><pre>${escapeHTML(displayLyrics)}</pre></section>`;
+    }
     return `<details id="result-${escapeHTML(job.id)}" data-job-id="${escapeHTML(job.id)}" class="notice result-item result-disclosure ${escapeHTML(job.status)}">
-      <summary class="result-summary"><label class="result-checkbox-label" onclick="event.stopPropagation()"><input type="checkbox" class="result-item-checkbox" data-select-id="${escapeHTML(job.id)}" aria-label="선택" ${pending?'disabled':''} ${selectedJobIds.has(job.id)?'checked':''}></label>${pending?`<span class="result-loading" role="status" aria-label="${job.status==='queued'?'생성 대기 중':'음악 생성 중'}">${window.StudioIcons('spinner')}</span>`:`<button type="button" class="result-play" data-play="${escapeHTML(job.id)}" aria-label="${job.audioUrl?'재생':'생성 완료 후 재생 가능'}" title="${job.audioUrl?'펼쳐서 재생':'생성 완료 후 재생 가능'}" aria-pressed="false" ${job.audioUrl?'':'disabled'}><span aria-hidden="true">${window.StudioIcons('play')}</span></button>`}<span class="result-summary-main"><span class="result-summary-title">${escapeHTML(title)}</span><span class="result-summary-meta"><span class="result-state ${escapeHTML(job.status)}">${escapeHTML(statusLabels[job.status]||job.status)}</span><span>${escapeHTML(durationText(job))}</span><span>${escapeHTML(date)}</span></span></span>${pending?`<label class="result-autoplay-label" onclick="event.stopPropagation()" title="생성 작업이 완료되면 자동으로 재생을 시작합니다"><input type="checkbox" class="result-autoplay-checkbox" ${autoPlayEnabled?'checked':''}> <span>생성 후 자동 재생</span></label>`:''}<span class="result-chevron" aria-hidden="true">${window.StudioIcons('chevron')}</span></summary>
+      <summary class="result-summary"><label class="result-checkbox-label" onclick="event.stopPropagation()"><input type="checkbox" class="result-item-checkbox" data-select-id="${escapeHTML(job.id)}" aria-label="선택" ${pending?'disabled':''} ${selectedJobIds.has(job.id)?'checked':''}></label>${pending?`<span class="result-loading" role="status" aria-label="${job.status==='queued'?'생성 대기 중':'음악 생성 중'}">${window.StudioIcons('spinner')}</span>`:`<button type="button" class="result-play" data-play="${escapeHTML(job.id)}" aria-label="${job.audioUrl?'재생':'생성 완료 후 재생 가능'}" title="${job.audioUrl?'펼쳐서 재생':'생성 완료 후 재생 가능'}" aria-pressed="false" ${job.audioUrl?'':'disabled'}><span aria-hidden="true">${window.StudioIcons('play')}</span></button>`}<span class="result-summary-main"><span class="result-summary-title">${escapeHTML(title)}</span><span class="result-summary-meta"><span class="result-state ${escapeHTML(job.status)}">${escapeHTML(statusLabels[job.status]||job.status)}</span>${editBadge}<span>${escapeHTML(durationText(job))}</span><span>${escapeHTML(date)}</span></span></span>${canWorkshop?`<button type="button" class="result-workshop-chip" data-open-workshop="${escapeHTML(job.id)}" aria-label="${escapeHTML(title)} 노래 다듬기">${window.StudioIcons('wand')}<span>다듬기</span></button>`:''}${pending?`<label class="result-autoplay-label" onclick="event.stopPropagation()" title="생성 작업이 완료되면 자동으로 재생을 시작합니다"><input type="checkbox" class="result-autoplay-checkbox" ${autoPlayEnabled?'checked':''}> <span>생성 후 자동 재생</span></label>`:''}<span class="result-chevron" aria-hidden="true">${window.StudioIcons('chevron')}</span></summary>
       <div class="result-body"><p class="playback-message" role="status" aria-live="polite"></p>
         <form class="result-title-editor" hidden><label>제목<input class="track-title" name="title" type="text" maxlength="100" required autocomplete="off"></label><div class="title-editor-actions"><button type="submit">저장</button><button type="button" data-rename-cancel>취소</button></div></form><p class="rename-message" role="status" aria-live="polite"></p>
         ${job.audioUrl?window.AudioSpectrum.markup(escapeHTML(job.audioUrl)):''}
@@ -287,9 +342,9 @@ function resultMarkup(job){
         <h3>음악 설명</h3><p class="result-description">${escapeHTML(job.prompt||'')}</p>
         ${job.generationPrompt?`<details class="result-translation"><summary>생성에 사용한 영어 설명</summary><p>${escapeHTML(job.generationPrompt)}</p></details>`:''}
         ${job.referenceAudioName?`<p class="result-reference-audio">참조 오디오: <strong>${escapeHTML(job.referenceAudioName)}</strong></p>`:''}
-        ${job.lyrics?`<section class="saved-lyrics"><h3>가사${language?' · '+escapeHTML(language):''}</h3><pre>${escapeHTML(job.lyrics)}</pre></section>`:''}
+        ${lyricsSectionMarkup}
         <details class="result-technical"><summary>생성 설정 및 처리 정보</summary><dl>${info.map(([key,value])=>`<div><dt>${escapeHTML(key)}</dt><dd>${escapeHTML(value)}</dd></div>`).join('')}</dl></details>
-        <div class="result-actions"><button type="button" class="rename-result" data-rename ${['running','queued'].includes(job.status)?'disabled':''}>제목 수정</button>${job.audioUrl?`<a class="download-result" href="${escapeHTML(job.audioUrl)}" download="${escapeHTML(filename)}.wav">WAV 다운로드</a><a class="download-result download-mp3" href="/audio/${escapeHTML(job.id)}.mp3" download="${escapeHTML(filename)}.mp3" aria-label="MP3 다운로드 · 320kbps">MP3 다운로드</a><button type="button" class="open-folder-result" data-open-folder="${escapeHTML(job.id)}" title="저장 폴더 열기">폴더 열기</button>`:''}<button class="delete-result" data-delete="${escapeHTML(job.id)}" ${['running','queued'].includes(job.status)?'disabled':''}>삭제</button></div><p class="download-message" role="status" aria-live="polite"></p>
+        <div class="result-actions">${canWorkshop?`<button type="button" class="workshop-result-btn" data-open-workshop="${escapeHTML(job.id)}">${window.StudioIcons('wand')}<span>노래 다듬기</span></button>`:''}<button type="button" class="rename-result" data-rename ${['running','queued'].includes(job.status)?'disabled':''}>제목 수정</button>${job.audioUrl?`<a class="download-result" href="${escapeHTML(job.audioUrl)}" download="${escapeHTML(filename)}.wav">WAV 다운로드</a><a class="download-result download-mp3" href="/audio/${escapeHTML(job.id)}.mp3" download="${escapeHTML(filename)}.mp3" aria-label="MP3 다운로드 · 320kbps">MP3 다운로드</a><button type="button" class="open-folder-result" data-open-folder="${escapeHTML(job.id)}" title="저장 폴더 열기">폴더 열기</button>`:''}<button class="delete-result" data-delete="${escapeHTML(job.id)}" ${['running','queued'].includes(job.status)?'disabled':''}>삭제</button></div><p class="download-message" role="status" aria-live="polite"></p>
       </div>
     </details>`;
 }
@@ -353,6 +408,27 @@ $('jobs').addEventListener('click',event=>{
     const job=jobHistory.find(job=>job.id===card.dataset.jobId);
     form.elements.title.value=(job.title??job.prompt??'').slice(0,100);
     form.hidden=false;form.elements.title.focus();form.elements.title.select();
+});
+$('jobs').addEventListener('click',event=>{
+    const button=event.target.closest('[data-open-workshop]');
+    if(!button||button.disabled)return;
+    event.preventDefault();event.stopPropagation();
+    window.SongWorkshop?.open(button.dataset.openWorkshop);
+});
+$('jobs').addEventListener('click',event=>{
+    const tab=event.target.closest('[data-result-lyrics-tab]');
+    if(!tab)return;
+    const box=tab.closest('.saved-lyrics-tabbed');
+    if(!box)return;
+    const target=tab.dataset.resultLyricsTab;
+    for(const b of box.querySelectorAll('[data-result-lyrics-tab]')){
+        const active=b.dataset.resultLyricsTab===target;
+        b.classList.toggle('is-active',active);
+        b.setAttribute('aria-selected',String(active));
+    }
+    for(const panel of box.querySelectorAll('[data-result-lyrics-panel]')){
+        panel.hidden=panel.dataset.resultLyricsPanel!==target;
+    }
 });
 $('jobs').addEventListener('click',async event=>{
     const button=event.target.closest('[data-open-folder]');
@@ -448,7 +524,7 @@ function formatDotMatrixClock(sec){const total=Math.max(0,Math.floor(Number(sec)
 let activeRunStartedAt=0;
 setInterval(()=>{const clockEl=document.querySelector('#generation-status.is-generating .dot-matrix-clock');if(clockEl&&activeRunStartedAt)clockEl.textContent=formatDotMatrixClock(Date.now()/1000-activeRunStartedAt);},1000);
 function accelerationDeviceLabel(backend){if(backend==='apple')return '생성 가속 지원 장치: Apple Silicon';if(backend==='cuda')return '생성 가속 지원 장치: NVIDIA CUDA';if(backend==='cpu')return '생성 가속 지원 장치: CPU (느림)';return '';}
-async function jobs(){try{const data=await api('/api/jobs');jobHistory=data.jobs;activeJob=data.jobs.some(j=>['queued','running'].includes(j.status));const visibleJobs=data.jobs.filter(matchesCurrentResults);for(const key of RESULT_MODES)$('count-'+key).textContent=data.jobs.filter(j=>(j.settings.mode||'bgm')===key).length;const latest=visibleJobs[0];const running=data.jobs.find(j=>['queued','running'].includes(j.status));const kind=resultKind();for(const type of ['vocal','instrumental'])$('count-song-'+type).textContent=data.jobs.filter(job=>job.settings.mode==='song'&&Boolean(job.settings.instrumental)===(type==='instrumental')).length;const runningKind=running?.settings.mode==='song'?(running.settings.instrumental?'연주곡':'노래'):(running?.settings.mode==='sfx'?'효과음':'배경음악');const runningDevice=running?accelerationDeviceLabel(running.settings?.backend):'';const statusEl=$('generation-status');const subEl=$('generation-sub-status');if(running){activeRunStartedAt=running.createdAt||Date.now()/1000;const infoLine=(running.phase||(runningKind+' 생성 중')).trim();const isCpu=running.settings?.backend==='cpu';const existingLabel=statusEl.querySelector('.dot-matrix-label');const existingClock=statusEl.querySelector('.dot-matrix-clock');if(existingLabel&&existingClock&&statusEl.querySelector('.dot-matrix-scanner')){existingLabel.textContent=`${runningKind} 생성 중`;existingClock.textContent=formatDotMatrixClock(Date.now()/1000-activeRunStartedAt);}else{statusEl.innerHTML=`<div class="dot-matrix-main"><span class="dot-matrix-label">${escapeHTML(runningKind)} 생성 중</span><span class="dot-matrix-clock">${formatDotMatrixClock(Date.now()/1000-activeRunStartedAt)}</span></div><div class="dot-matrix-scanner" aria-hidden="true"><span></span></div>`;}if(subEl){let subHTML=infoLine?`<div>${escapeHTML(infoLine)}</div>`:'';if(runningDevice)subHTML+=`<div class="generation-accel-line"><strong>${escapeHTML(runningDevice)}</strong></div>`;if(isCpu)subHTML+=`<div class="generation-cpu-notice">CPU 가속 모드일 때 10분 이상, 설정에 따라 30분 이상이 소요될 수 있습니다.</div>`;subEl.innerHTML=subHTML;subEl.hidden=!subHTML;}}else{activeRunStartedAt=0;statusEl.textContent=latest?`${kind} 최근 작업: ${statusLabels[latest.status]||latest.status} · 총 ${visibleJobs.length}개`:`아직 생성한 ${kind} 결과가 없습니다.`;if(subEl){subEl.innerHTML='';subEl.hidden=true;}}render();renderResultPage(visibleJobs);if(autoPlayPendingId){const target=data.jobs.find(j=>j.id===autoPlayPendingId);if(target&&target.status==='completed'){const id=autoPlayPendingId;autoPlayPendingId=null;if(autoPlayEnabled){setTimeout(()=>{const card=$('result-'+id);if(card){card.open=true;const audio=card.querySelector('audio');if(audio)audio.play().catch(()=>{});}},60);}}else if(target&&['failed','error','cancelled'].includes(target.status)){autoPlayPendingId=null;}}}catch(e){$('message').textContent=e.message;}}
+async function jobs(){try{const data=await api('/api/jobs');jobHistory=data.jobs;activeJob=data.jobs.some(j=>['queued','running'].includes(j.status));const visibleJobs=data.jobs.filter(matchesCurrentResults);for(const key of RESULT_MODES)$('count-'+key).textContent=data.jobs.filter(j=>(j.settings.mode||'bgm')===key).length;const latest=visibleJobs[0];const running=data.jobs.find(j=>['queued','running'].includes(j.status));const kind=resultKind();for(const type of ['vocal','instrumental'])$('count-song-'+type).textContent=data.jobs.filter(job=>job.settings.mode==='song'&&Boolean(job.settings.instrumental)===(type==='instrumental')).length;const runningKind=running?.settings.mode==='song'?(running.settings.instrumental?'연주곡':'노래'):(running?.settings.mode==='sfx'?'효과음':'배경음악');const runningDevice=running?accelerationDeviceLabel(running.settings?.backend):'';const statusEl=$('generation-status');const subEl=$('generation-sub-status');if(running){activeRunStartedAt=running.createdAt||Date.now()/1000;const infoLine=(running.phase||(runningKind+' 생성 중')).trim();const isCpu=running.settings?.backend==='cpu';const existingLabel=statusEl.querySelector('.dot-matrix-label');const existingClock=statusEl.querySelector('.dot-matrix-clock');if(existingLabel&&existingClock&&statusEl.querySelector('.dot-matrix-scanner')){existingLabel.textContent=`${runningKind} 생성 중`;existingClock.textContent=formatDotMatrixClock(Date.now()/1000-activeRunStartedAt);}else{statusEl.innerHTML=`<div class="dot-matrix-main"><span class="dot-matrix-label">${escapeHTML(runningKind)} 생성 중</span><span class="dot-matrix-clock">${formatDotMatrixClock(Date.now()/1000-activeRunStartedAt)}</span></div><div class="dot-matrix-scanner" aria-hidden="true"><span></span></div>`;}if(subEl){let subHTML=infoLine?`<div>${escapeHTML(infoLine)}</div>`:'';if(runningDevice)subHTML+=`<div class="generation-accel-line"><strong>${escapeHTML(runningDevice)}</strong></div>`;if(isCpu)subHTML+=`<div class="generation-cpu-notice">CPU 가속 모드일 때 10분 이상, 설정에 따라 30분 이상이 소요될 수 있습니다.</div>`;subEl.innerHTML=subHTML;subEl.hidden=!subHTML;}}else{activeRunStartedAt=0;statusEl.textContent=latest?`${kind} 최근 작업: ${statusLabels[latest.status]||latest.status} · 총 ${visibleJobs.length}개`:`아직 생성한 ${kind} 결과가 없습니다.`;if(subEl){subEl.innerHTML='';subEl.hidden=true;}}render();renderResultPage(visibleJobs);window.SongWorkshop?.onJobsUpdated(data.jobs);if(autoPlayPendingId){const target=data.jobs.find(j=>j.id===autoPlayPendingId);if(target&&target.status==='completed'){const id=autoPlayPendingId;autoPlayPendingId=null;if(autoPlayEnabled){setTimeout(()=>{const card=$('result-'+id);if(card){card.open=true;const audio=card.querySelector('audio');if(audio)audio.play().catch(()=>{});}},60);}}else if(target&&['failed','error','cancelled'].includes(target.status)){autoPlayPendingId=null;}}}catch(e){$('message').textContent=e.message;}}
 setInterval(jobs,2000);jobs();
 $('new-track').onclick=()=>{resetDraftInputs();$('lyric-tools-status').textContent='';$('lyric-request-fallback').value='';$('lyric-request-fallback').hidden=true;$('message').textContent='새 '+(mode==='song'?'노래':(mode==='sfx'?'효과음':'배경음악'))+'를 만들 준비가 되었습니다.';updatePromptCount();$('track-title').focus();};
 function resetDraftInputs(){
@@ -1111,3 +1187,14 @@ window.addEventListener('sorisoop:referenceadded',async event=>{
     if($('reference-audio-status'))$('reference-audio-status').textContent=`'${item.name}'을(를) 보컬 음성 ${idx+1}(으)로 등록했습니다.`;
 });
 refreshReferenceAudios();
+window.StudioAppContext={
+    getContext:()=>({
+        state,
+        jobs:jobHistory,
+        backend:$('backend')?.value||'cpu',
+        peakDb:Number($('peak-db')?.value??-8),
+        songExpert:window.ExpertSettings?.value?.(),
+        referenceAudios,
+        refreshJobs:jobs
+    })
+};

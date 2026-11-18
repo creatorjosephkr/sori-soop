@@ -389,7 +389,7 @@ class Handler(BaseHTTPRequestHandler):
             info = diagnose()
             settings = read_settings()
             return self.reply({'system': info, 'settings': settings, 'translationReady': translation.ready(), 'recommendation': recommend(info, settings.get('mode', 'bgm')), 'models': MODELS, 'engineReady': engine.ready('apple' if info['appleSilicon'] else ('cuda' if info.get('cudaEligible') else 'cpu')), 'engines': {b: engine.ready(b) for b in ('apple', 'cpu', 'cuda')}, 'sa3Models': {b: {m: engine.sa3_model_ready(b, m) for m in ('small-music', 'medium', 'small-sfx')} for b in ('apple', 'cpu', 'cuda')}, 'songEngines': {b: engine.ready(b, 'ace-step') for b in ('apple', 'cpu', 'cuda')}, 'songPlanners':{q:engine.planner_ready(q) for q in ('light','quality')}, 'hasExaoneApiKey': bool(settings.get('exaoneApiKey')), 'exaoneTimeout': settings.get('exaoneTimeout', exaone_lyrics.DEFAULT_REQUEST_TIMEOUT)})
-        paths = {'/': 'index.html', '/style.css': 'style.css', '/app.js': 'app.js', '/generation-options.js': 'generation-options.js', '/expert-settings.js': 'expert-settings.js', '/studio-modes.js': 'studio-modes.js', '/tts-voice.js': 'tts-voice.js', '/presets.js': 'presets.js', '/player.js': 'player.js', '/icons.js': 'icons.js', '/setup.js': 'setup.js', '/updates.js': 'updates.js', '/fonts/NotoSansKR-Variable.ttf': 'fonts/NotoSansKR-Variable.ttf', '/fonts/Mulmaru.ttf': 'fonts/Mulmaru.ttf', '/fonts/PIDvl.ttf': 'fonts/PIDvl.ttf', '/fonts/x12y12pxMaruMinyaHangul.ttf': 'fonts/x12y12pxMaruMinyaHangul.ttf', '/icons/sorisup.svg': 'icons/sorisup.svg', '/icons/chatgpt.svg': 'icons/chatgpt.svg', '/icons/claude.ico': 'icons/claude.ico', '/icons/gemini.png': 'icons/gemini.png'}
+        paths = {'/': 'index.html', '/style.css': 'style.css', '/app.js': 'app.js', '/generation-options.js': 'generation-options.js', '/expert-settings.js': 'expert-settings.js', '/studio-modes.js': 'studio-modes.js', '/song-workshop.js': 'song-workshop.js', '/tts-voice.js': 'tts-voice.js', '/presets.js': 'presets.js', '/player.js': 'player.js', '/icons.js': 'icons.js', '/setup.js': 'setup.js', '/updates.js': 'updates.js', '/fonts/NotoSansKR-Variable.ttf': 'fonts/NotoSansKR-Variable.ttf', '/fonts/Mulmaru.ttf': 'fonts/Mulmaru.ttf', '/fonts/PIDvl.ttf': 'fonts/PIDvl.ttf', '/fonts/x12y12pxMaruMinyaHangul.ttf': 'fonts/x12y12pxMaruMinyaHangul.ttf', '/icons/sorisup.svg': 'icons/sorisup.svg', '/icons/chatgpt.svg': 'icons/chatgpt.svg', '/icons/claude.ico': 'icons/claude.ico', '/icons/gemini.png': 'icons/gemini.png'}
         paths.update({'/spon/'+name: '../spon/'+name for name in ('spon.svg', 'kakaobank.png', 'paypal.png')})
         if self.path not in paths:
             return self.reply({'error': '찾을 수 없습니다.'}, 404)
@@ -751,7 +751,9 @@ class Handler(BaseHTTPRequestHandler):
                 settings = validate(body['settings'])
                 info = diagnose()
                 settings = resolve_generation_settings(settings, info)
-                return self.reply(engine.start(settings, body.get('prompt'), info['availableGB'], body.get('lyrics', ''), body.get('language', 'ko'), body.get('title', ''), body.get('negativePrompt', ''), reference_audio_id=body.get('referenceAudioId'), reference_audio_ids=body.get('referenceAudioIds')), 202)
+                return self.reply(engine.start(settings, body.get('prompt'), info['availableGB'], body.get('lyrics', ''), body.get('language', 'ko'), body.get('title', ''), body.get('negativePrompt', ''), reference_audio_id=body.get('referenceAudioId'), reference_audio_ids=body.get('referenceAudioIds'), edit_spec=body.get('editSpec')), 202)
+            except FileNotFoundError as e:
+                return self.reply({'error': str(e)}, 404)
             except (ValueError, TypeError, KeyError) as e:
                 return self.reply({'error': str(e)}, 400)
         if self.path != '/api/settings':
