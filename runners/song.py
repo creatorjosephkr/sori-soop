@@ -370,9 +370,12 @@ if not np.isfinite(audio).all() or not np.any(audio):
     raise RuntimeError('유효한 음악 신호가 생성되지 않았습니다.')
 write_wav(output,audio,rate,settings.get('peakDb',-8),channels_first=False)
 if sys.platform == 'win32':
-    import psutil
-    peak = psutil.Process().memory_info().peak_wset
-    if device == 'cuda' and torch.cuda.is_available():
+    try:
+        import psutil
+        peak = psutil.Process().memory_info().peak_wset
+    except (ImportError, OSError):
+        peak = 0
+    if device == 'cuda' and hasattr(torch, 'cuda') and torch.cuda.is_available():
         vram_peak = torch.cuda.max_memory_allocated() / 1024**3
         print(f'CUDA peak VRAM {vram_peak:.2f} GB', flush=True)
 else:
